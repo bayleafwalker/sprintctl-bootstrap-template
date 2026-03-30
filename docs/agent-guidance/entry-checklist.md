@@ -20,105 +20,143 @@ If AGENTS.md doesn't exist, your first task is to create it. See `docs/onboardin
 
 ---
 
-## Step 2: Check current sprint state
+## Step 2: Load environment
 
 ```bash
-sprintctl sprint current
-sprintctl sprint status
+# If using direnv
+direnv allow
+
+# Or source manually
+source .envrc
+```
+
+Verify the DB path is scoped to this repo (not the global default):
+
+```bash
+echo $SPRINTCTL_DB
+# Should be something like /path/to/repo/.sprintctl/sprintctl.db
+```
+
+---
+
+## Step 3: Check current sprint state
+
+```bash
+sprintctl sprint show
+sprintctl sprint show --detail
 ```
 
 What to note:
-- Sprint name and dates (are we early, mid, or late in the sprint?)
-- Overall item counts (done/in-progress/open/blocked)
+- Sprint name and dates (early, mid, or late in sprint?)
+- Overall item counts (done/active/pending/blocked)
 - Whether the sprint is on track or has accumulated debt
 
 If no active sprint exists, your first task is to create one. See `docs/workflows/E-fresh-repo-bootstrap.md`.
 
 ---
 
-## Step 3: List all items
+## Step 4: List all items
 
 ```bash
-sprintctl item list --sprint current
+# Get the active sprint ID from the show output, then:
+sprintctl item list --sprint-id <sprint-id>
 ```
 
 Scan for:
-- High-priority open items (potential work for this session)
-- In-progress items that may have stale claims
+- Pending items (potential work for this session)
+- Active items that may have stale claims
 - Blocked items that might now be unblockable
 
 ---
 
-## Step 4: Check open claims
+## Step 5: Check open claims
 
 ```bash
-sprintctl claim list
+sprintctl claim list-sprint --sprint-id <sprint-id>
 ```
 
 For each claim, check:
 - When was it created?
 - Is the claiming agent still active, or is this stale?
-- Is there a handoff note?
+- Is there a handoff note on the item?
 
-A claim with no recent activity and no handoff note is likely stale. Don't pick up stale-claimed items without first checking if the work is actually in progress.
+A claim with no recent activity and no handoff note on the item is likely stale.
 
-**Staleness heuristic:** A claim with no updates in 24+ hours without a handoff note is probably stale. Release it if you're taking over the item.
+**Staleness heuristic:** A claim created more than 24 hours ago with no heartbeat activity and no handoff note is probably stale. Use `maintain sweep` to purge expired claims:
 
 ```bash
-# If taking over a stale claim
-sprintctl claim release --item <item-id>
-sprintctl claim create --item <item-id> --context "Picking up from stale claim. <your approach>"
+sprintctl maintain sweep --sprint-id <sprint-id>
+```
+
+If you're taking over a legitimately stale-claimed item, you'll need to use the adopt path:
+
+```bash
+# First check what's on the item
+sprintctl item show --id <item-id>
+
+# Then create your own claim using legacy adopt (for pre-token claims)
+sprintctl claim create \
+  --item-id <item-id> \
+  --actor your-session-id \
+  --runtime-session-id "${CODEX_THREAD_ID:-session-1}" \
+  --json
 ```
 
 ---
 
-## Step 5: Read handoff notes on items you're picking up
+## Step 6: Read handoff notes on items you're picking up
 
 ```bash
-sprintctl item show <item-id>
+sprintctl item show --id <item-id>
 ```
 
-Read the full handoff note. Don't skim it. The handoff note contains:
+Read the full event history. Don't skim it. The handoff events contain:
 - What was done
 - What to do next
 - Any blockers or context the previous agent needed to record
 
 ---
 
-## Step 6: Scan blocked items
+## Step 7: Scan blocked items
 
 ```bash
-sprintctl item list --sprint current --state blocked
+sprintctl item list --sprint-id <sprint-id> --status blocked
 ```
 
 For each blocked item:
-- Read the block reason
+- Read the block reason in events (`sprintctl item show --id <item-id>`)
 - Is the block condition still valid?
 - Can you unblock it now?
 
-If you can unblock it, do so before claiming other work (unblocking is usually fast and high-value).
+If you can unblock it:
 
 ```bash
-# If a blocked item can be unblocked
-sprintctl item unblock <item-id> --note "Unblocked: <what resolved the block>"
+# Return the item to active (or pending if no claim will be taken immediately)
+sprintctl item status --id <item-id> --status pending --actor your-session-id
+
+sprintctl item note \
+  --id <item-id> \
+  --type blocker-resolved \
+  --summary "Unblocked: <what resolved the block>" \
+  --actor your-session-id
 ```
 
 ---
 
-## Step 7: Identify what track to work in
+## Step 8: Identify what track to work in
 
 Based on your capabilities and the sprint state, identify your track for this session.
 
 Considerations:
-- Which track has the highest-priority open items?
-- Are there in-progress items with handoffs that need continuation?
+- Which track has the highest-priority pending items?
+- Are there active items with handoffs that need continuation?
 - Do you have the context/capability to work in this track?
 
 Don't spread across all tracks in one session. Focus.
 
 ---
 
-## Step 8: Decide whether to claim before starting
+## Step 9: Decide whether to claim before starting
 
 Per AGENTS.md claim policy:
 
@@ -131,12 +169,19 @@ Per AGENTS.md claim policy:
 - Read-only orientation (what you're doing right now)
 - Tiny edits (typo fixes, adding a sentence)
 
-When in doubt, claim. A claim you release is better than no claim on real work.
+When in doubt, claim. A claim you release after 5 minutes has zero cost.
 
 ```bash
 sprintctl claim create \
-  --item <item-id> \
-  --context "<what you're going to do and how>"
+  --item-id <item-id> \
+  --actor your-session-id \
+  --runtime-session-id "${CODEX_THREAD_ID:-session-1}" \
+  --branch feat/your-work \
+  --json
+# Save claim_id and claim_token from output
+
+sprintctl item status --id <item-id> --status active \
+  --actor your-session-id --claim-id <claim-id> --claim-token <claim-token>
 ```
 
 ---
@@ -144,13 +189,14 @@ sprintctl claim create \
 ## Quick entry summary
 
 ```bash
-# The fast path
+# The fast path (adapt sprint-id to your actual ID)
 cat AGENTS.md
-sprintctl sprint current
-sprintctl item list --sprint current
-sprintctl claim list
-# Read any handoff notes
-sprintctl item list --sprint current --state blocked
+source .envrc
+sprintctl sprint show
+sprintctl item list --sprint-id 1
+sprintctl claim list-sprint --sprint-id 1
+# Read any item handoff notes
+sprintctl item list --sprint-id 1 --status blocked
 # Pick your work, claim it, start
 ```
 
@@ -163,9 +209,8 @@ Total time for a clean entry: 5-10 minutes.
 If you see any of these, stop and address before starting work:
 
 - **No AGENTS.md** → Create it (see bootstrap docs)
-- **No active sprint** → Create one (see bootstrap docs)
-- **Stale claims everywhere** → Release stale claims, check for orphaned work
-- **Multiple items in 'raw' state** → Shape them before claiming implementation work
-- **Sprint is past its end date** → Archive it, create next sprint
+- **No active sprint** → Create one (see `docs/workflows/E-fresh-repo-bootstrap.md`)
+- **Many stale claims** → Run `sprintctl maintain sweep`, then check for orphaned work
+- **Sprint is past its end date** → Archive it, create next sprint with `maintain carryover`
 
 Don't proceed with implementation work while the coordination layer is broken.

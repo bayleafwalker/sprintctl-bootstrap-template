@@ -16,30 +16,35 @@ An idea, requirement, or observation exists in someone's head, a conversation, o
 ### Typical artifacts
 - A bullet in a notes file
 - A conversation log
-- A GitHub issue (if the project uses them as inputs)
-- A raw text file in the repo
+- A raw text capture anywhere
 
-### Expected sprintctl/kctl actions
+### Expected sprintctl actions
+
 ```bash
-# Capture as a raw backlog item (unshaped)
-sprintctl item create \
-  --sprint current \
-  --track <appropriate-track> \
-  --title "<idea as a short statement>" \
-  --state backlog \
-  --note "Raw capture: <longer description or context>"
+# Find the active sprint ID
+sprintctl sprint show --json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['id'])"
 
-# Alternatively, add to a staging track if the idea needs shaping before assigning
-sprintctl item create --track backlog --title "..." --state raw
+# Capture as a pending item (pending = not yet started)
+sprintctl item add \
+  --sprint-id <sprint-id> \
+  --track <appropriate-track> \
+  --title "<idea as a short statement>"
+
+# Add context as a note
+sprintctl item note \
+  --id <item-id> \
+  --type decision \
+  --summary "Raw capture: <longer description or context>" \
+  --actor agent
 ```
 
 No kctl actions at this stage. Ideas are not knowledge.
 
-### When to stop / hand off
-Stop when the idea is captured. Don't shape it now unless you have full context. A badly shaped item is worse than an unshaped one.
+### When to stop
+Stop when the idea is captured. Don't shape it now unless you have full context.
 
 ### Success criteria
-- The idea is captured somewhere in sprintctl with enough detail that you (or another agent) can understand it cold
+- The idea is captured in sprintctl with enough detail that you (or another agent) can understand it cold
 - It is not lost
 
 ---
@@ -49,52 +54,54 @@ Stop when the idea is captured. Don't shape it now unless you have full context.
 **What this is:** Converting raw ideas and requirements into specific, actionable sprint items with clear scope and acceptance criteria.
 
 ### Entry condition
-- One or more raw/backlog items exist that need shaping
+- One or more pending items exist that need shaping
 - OR a new sprint is being created and needs to be populated
-- OR a planning session is happening to review and refine scope
+- OR a planning session is reviewing and refining scope
 
 ### Typical artifacts
-- Shaped sprint items with clear titles, descriptions, and acceptance criteria
-- Updated item priorities
-- Items assigned to tracks
+- Items with descriptive titles and noted scope
 - Sprint with a defined date range and name
 
-### Expected sprintctl/kctl actions
+### Expected sprintctl actions
+
 ```bash
-# Shape an existing raw item
-sprintctl item update <item-id> \
-  --title "<specific, scoped title>" \
-  --description "<what done looks like>" \
-  --priority <high|medium|low> \
-  --track <track-name> \
-  --state open
+# Review pending items to shape
+sprintctl item list --sprint-id <sprint-id> --status pending
 
-# Review existing backlog
-sprintctl item list --state backlog,raw
+# Read an item to understand what was captured
+sprintctl item show --id <item-id>
 
-# Create a shaped sprint
+# Add shaping context via a note
+sprintctl item note \
+  --id <item-id> \
+  --type decision \
+  --summary "Shaped: <specific scope, what done looks like, any constraints>" \
+  --actor agent
+
+# Create a new sprint for shaped work
 sprintctl sprint create \
   --name 2026-S02-forge-schema-weave \
+  --status active \
   --start 2026-04-14 \
   --end 2026-04-27
 
-# Move items to new sprint
-sprintctl item migrate --item <id> --to 2026-S02-forge-schema-weave
+# Add shaped items directly to the new sprint
+sprintctl item add \
+  --sprint-id <new-sprint-id> \
+  --track <track-name> \
+  --title "<specific, outcome-focused title>"
 ```
 
-### When to stop / hand off
+### When to stop
 Stop when:
 - All items in the sprint are specific enough that an agent could pick one up and know what to do
-- Priorities are set
-- The sprint has a realistic scope (not overloaded)
-
-Don't keep shaping indefinitely. "Good enough to start" is the target.
+- The sprint has realistic scope (not overloaded)
 
 ### Success criteria
-- Sprint has 5-15 shaped items (more than 15 usually means scope creep)
+- Sprint has 5-15 shaped items
 - Each item has a clear title that describes the outcome, not the activity
 - No item is vague enough to be interpreted multiple ways
-- Items are assigned to tracks and have priorities
+- Items are assigned to tracks
 
 ---
 
@@ -103,54 +110,69 @@ Don't keep shaping indefinitely. "Good enough to start" is the target.
 **What this is:** An agent (or the developer) picks up a shaped item, claims it, does the work, and closes or hands off.
 
 ### Entry condition
-- A shaped, open, unclaimed item exists in the current sprint
+- A shaped, pending, unclaimed item exists in the current sprint
 - The agent has read AGENTS.md and checked current sprint state
 - The agent understands the track and scope of the item
 
 ### Typical artifacts
-- Claim with agent context
+- Active claim with agent identity
 - Code, docs, config, or other work product
-- Handoff note (if not completing in one session)
-- Closed item (if completing in one session)
+- Completion note on the item, OR
+- Handoff events and transferred claim
 
-### Expected sprintctl/kctl actions
+### Expected sprintctl actions
+
 ```bash
-# Claim the item before starting
+# Claim the item before starting (save claim_id and claim_token from output)
 sprintctl claim create \
-  --item <item-id> \
-  --context "Implementing X by doing Y. Will create files A, B, C."
+  --item-id <item-id> \
+  --actor <session-id> \
+  --runtime-session-id "${CODEX_THREAD_ID:-manual-session}" \
+  --branch feat/your-work \
+  --json
 
-# Update claim if approach changes mid-work
-sprintctl claim update --item <item-id> \
-  --context "Changed approach: doing Z instead of Y because <reason>"
+# Move item to active (requires token proof)
+sprintctl item status --id <item-id> --status active \
+  --actor <session-id> --claim-id <claim-id> --claim-token <claim-token>
 
-# Tag kctl candidates during work (don't wait until the end)
-sprintctl item tag <item-id> --add kctl-candidate \
-  --note "Decision: chose approach X over Y because <rationale>"
+# Record intent and non-obvious decisions during work
+sprintctl item note --id <item-id> --type decision \
+  --summary "<decision and rationale>" \
+  --actor <session-id>
 
-# Close when done
-sprintctl item close <item-id> --note "Done. <brief summary of what was produced>"
+# If done:
+sprintctl item note --id <item-id> --type decision \
+  --summary "Done: <brief summary of what was produced>" \
+  --actor <session-id>
+sprintctl item status --id <item-id> --status done \
+  --actor <session-id> --claim-id <claim-id> --claim-token <claim-token>
+sprintctl claim release --id <claim-id> --claim-token <claim-token>
 
-# OR hand off if stopping mid-work
-sprintctl item handoff <item-id> --note "
-  Status: <what's done>
-  Next: <what to do next>
-  Blockers: none
-"
+# If handing off:
+sprintctl item note --id <item-id> --type claim-handoff \
+  --summary "Status: <what's done>. Next: <what to do next>." \
+  --detail "<file locations, approach notes, blockers if any>" \
+  --actor <session-id>
+sprintctl claim handoff --id <claim-id> --claim-token <claim-token> \
+  --actor <next-session-id> --mode rotate
 
-# OR block if genuinely blocked
-sprintctl item block <item-id> --reason "<what's blocking and what's needed to unblock>"
+# If blocked:
+sprintctl item note --id <item-id> --type decision \
+  --summary "Blocked: <reason, what's needed to unblock>" --actor <session-id>
+sprintctl item status --id <item-id> --status blocked \
+  --actor <session-id> --claim-id <claim-id> --claim-token <claim-token>
+sprintctl claim release --id <claim-id> --claim-token <claim-token>
 ```
 
 ### When to stop / hand off
 Stop and hand off when:
 - The session is ending and the item isn't done
-- A dependency or blocker appears that you can't resolve now
+- A blocker appears that you can't resolve now
 - Scope has grown beyond the original item (create a new item for the overflow)
 
 ### Success criteria
-- Item is closed with a completion note, OR
-- Item has a handoff note that a fresh agent could use to continue, OR
+- Item is done with a completion note, OR
+- Item has a handoff note and claim transferred to the next session, OR
 - Item is blocked with a specific, actionable reason
 
 ---
@@ -160,34 +182,43 @@ Stop and hand off when:
 **What this is:** For wider-scope, architectural, or risky changes, an explicit review step before the work is considered done.
 
 ### Entry condition
-- Item is tagged `review-required`
+- Item has a `review-required` note
 - OR work involves schema changes, architectural decisions, or changes to AGENTS.md/workflow contracts
-- OR the working agent flagged the item for review before handing off
+- OR the working agent flagged the item for review
 
 ### Typical artifacts
-- Review comment on the item
-- Updated handoff note with review outcome
-- New items created from review findings
-- Item closed or returned to open
+- Review note on the item
+- Item closed or returned to pending
 
-### Expected sprintctl/kctl actions
+### Expected sprintctl actions
+
 ```bash
-# Review the work (read files, check diffs, evaluate approach)
-# Add review comment
-sprintctl item comment <item-id> --note "Review: <findings, concerns, approvals>"
+# Read the item and its full event history
+sprintctl item show --id <item-id>
 
-# If approved: close the item
-sprintctl item close <item-id> --note "Reviewed and approved. <summary>"
+# Claim for review
+sprintctl claim create --item-id <item-id> --actor reviewer --type review --json
 
-# If changes needed: return to open
-sprintctl item update <item-id> --state open \
-  --note "Review: needs changes. <specific changes required>"
+# Move to active for review work
+sprintctl item status --id <item-id> --status active \
+  --actor reviewer --claim-id <review-claim-id> --claim-token <review-claim-token>
 
-# If the review surfaced a new architectural item
-sprintctl item create \
-  --track workflow \
-  --title "Address: <finding from review>" \
-  --note "Surfaced during review of <item-id>"
+# Record review outcome
+sprintctl item note --id <item-id> --type decision \
+  --summary "Review: Approved. <summary of findings>" --actor reviewer
+# OR
+sprintctl item note --id <item-id> --type decision \
+  --summary "Review: Changes needed. <specific changes required>" --actor reviewer
+
+# If approved: close
+sprintctl item status --id <item-id> --status done \
+  --actor reviewer --claim-id <review-claim-id> --claim-token <review-claim-token>
+sprintctl claim release --id <review-claim-id> --claim-token <review-claim-token>
+
+# If changes needed: return to pending
+sprintctl item status --id <item-id> --status pending \
+  --actor reviewer --claim-id <review-claim-id> --claim-token <review-claim-token>
+sprintctl claim release --id <review-claim-id> --claim-token <review-claim-token>
 ```
 
 ### When review is required vs. optional
@@ -200,56 +231,44 @@ sprintctl item create \
 | New track creation | Required |
 | Cross-track architectural change | Required |
 | Routine implementation in defined scope | Optional |
-| Item explicitly tagged review-required | Required |
-
-### When to stop / hand off
-Stop when:
-- Review is complete and outcome is documented
-- Any follow-up items have been created
 
 ### Success criteria
 - Review outcome is recorded on the item
 - Item is closed or has clear next steps
-- Findings that affect future work are captured as new items or kctl candidates
+- Findings that affect future work are captured as new items or knowledge candidates
 
 ---
 
 ## Stage 5: Knowledge Extraction / Publication
 
-**What this is:** Durable decisions, patterns, and lessons from sprint work get promoted to kctl as permanent knowledge entries.
+**What this is:** Durable decisions, patterns, and lessons from sprint work get promoted to `docs/knowledge/` as permanent entries.
 
 ### Entry condition
-- Sprint work has produced decisions, patterns, or lessons worth preserving
-- Items tagged `kctl-candidate` exist and are ready for review
+- Sprint work has produced decisions or patterns worth preserving (recorded as `pattern-noted`, `lesson-learned`, or `decision` events)
 - OR a sprint is wrapping up and knowledge capture is the final step
 
 ### Typical artifacts
-- kctl candidate entries (tagged on items during work)
-- Reviewed knowledge entries
 - Published knowledge entries in `docs/knowledge/`
-- Updated sprint summary referencing knowledge promotions
+- Archived sprint rendered to `docs/sprint/archive/`
 
-### Expected sprintctl/kctl actions
+### Expected sprintctl actions
+
 ```bash
-# List candidates from current sprint
-kctl list --state candidate --sprint current
+# Collect candidates from sprint events
+sprintctl event list --sprint-id <sprint-id> --type pattern-noted
+sprintctl event list --sprint-id <sprint-id> --type lesson-learned
 
-# Review a candidate and draft the entry
-kctl draft <slug>
+# Run preflight before knowledge work
+sprintctl maintain check --sprint-id <sprint-id>
 
-# Promote to reviewed
-kctl promote <slug>
+# (If kctl is available, it reads these events directly)
+# kctl list --state candidate
 
-# Publish (move to docs/knowledge/)
-kctl publish <slug>
+# After publishing knowledge, render and archive the sprint
+sprintctl render > docs/sprint/archive/2026-S01-hearth-workflow-overture.md
 
-# Reference knowledge from a future sprint item
-sprintctl item create \
-  --title "..." \
-  --note "See knowledge: docs/knowledge/<slug>.md"
-
-# Archive the sprint when complete
-sprintctl sprint archive --render-output docs/sprint/archive/2026-S01-hearth-workflow-overture.md
+# Close the sprint
+sprintctl sprint status --id <sprint-id> --status closed
 ```
 
 ### What qualifies for promotion
@@ -262,15 +281,12 @@ sprintctl sprint archive --render-output docs/sprint/archive/2026-S01-hearth-wor
 
 **Don't promote:**
 - Implementation notes ("I used a for loop here")
-- Dead ends that are genuinely done
+- Dead ends that are genuinely over
 - Mechanical progress
-- Things obvious from reading the code or docs
-
-### When to stop / hand off
-Stop when all candidates from the sprint have been reviewed and either promoted/published or consciously rejected.
+- Things obvious from reading the code
 
 ### Success criteria
-- All `kctl-candidate` tagged items have been processed
+- All candidate events from the sprint have been reviewed
 - Published entries are in `docs/knowledge/` and are self-contained
-- Sprint is archived if complete
+- Sprint is archived
 - Next sprint can reference relevant published entries

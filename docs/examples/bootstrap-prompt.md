@@ -13,47 +13,54 @@ You are initializing the sprintctl + kctl workflow on this repository. Your job 
 
 sprintctl manages sprint execution: sprints, tracks, items, claims, handoffs, and state transitions. kctl manages durable knowledge: decisions, patterns, risks, and lessons that should persist beyond a single sprint. This is a local-first, repo-native workflow. No external project trackers. One developer plus sparse agent sessions.
 
-## Step 1: Assess
+NOTE: sprintctl has no `init` command. The database is created automatically on first use. Set SPRINTCTL_DB to scope it to this repo.
 
-Read README.md, AGENTS.md if it exists, and any existing sprintctl config. Identify: what is this repo for, is there an existing sprint, are there open claims, what tracks make sense.
+## Step 1: Set up DB scope
 
-## Step 2: Initialize sprintctl (if not initialized)
+Create an .envrc file:
+  echo 'export SPRINTCTL_DB="${PWD}/.sprintctl/sprintctl.db"' > .envrc
+  source .envrc
 
-Run: sprintctl init
-Configure: repo name, sprint naming convention YYYY-SNN-<anchor>-<focus>-<phase>, default sprint 14 days, sprint render path docs/sprint/, knowledge path docs/knowledge/
+Add to .gitignore:
+  .sprintctl/
+  handoff-*.json
+  sprint-*.json
 
-## Step 3: Initialize kctl (if not initialized)
+## Step 2: Assess
 
-Run: kctl init
-Configure: knowledge path docs/knowledge/, candidate tag kctl-candidate, review-before-publish true
+Read README.md, AGENTS.md if it exists. Run: sprintctl sprint show (to see if a sprint already exists). Identify: what is this repo for, is there an existing sprint, what tracks make sense.
 
-## Step 4: Create first sprint
+## Step 3: Create first sprint
 
-Name it using the convention. For initial setup: YYYY-S01-hearth-workflow-overture. For jumping straight to implementation: YYYY-S01-forge-<focus>-overture. Use the current year and next sprint number.
+Name using the convention: YYYY-SNN-<anchor>-<focus>-<phase>
+For initial setup use phase `overture`. Example: 2026-S01-hearth-workflow-overture
 
-sprintctl sprint create --name <name> --start <today> --end <today+14>
+  sprintctl sprint create --name <name> --status active --start <today> --end <today+14>
 
-## Step 5: Create tracks
+Note the sprint ID from the output.
 
-3-5 tracks based on repo purpose. For template/reference: workflow, docs, knowledge, tooling. For app repos: core, api, ui, infra, docs (adjust to fit).
+## Step 4: Create shaped items
 
-sprintctl track create --sprint <sprint-name> --name <track>
+Create 8-12 specific, actionable items using: sprintctl item add --sprint-id <id> --track <name> --title "<outcome-focused title>"
 
-## Step 6: Create shaped items
+Tracks are created implicitly — no separate track creation step needed. Use 3-5 tracks.
 
-Create 8-12 specific, actionable items. Not placeholders. Each item title should describe the outcome, not the activity. Assign each to a track with a priority.
+Add context notes: sprintctl item note --id <id> --type decision --summary "<scope, done condition>" --actor setup
 
-## Step 7: Create AGENTS.md
+## Step 5: Create AGENTS.md if it doesn't exist
 
-If AGENTS.md doesn't exist, create it. It must cover: repo purpose, sprint naming in use, track taxonomy, claim policy, review policy, artifact paths, knowledge promotion policy, how to start a sprint, how to hand off, what NOT to do.
+Must cover: repo purpose, sprint naming in use, track taxonomy, claim policy, review policy, artifact paths, knowledge promotion policy, source-of-truth order, what NOT to do.
 
-## Step 8: Render current sprint
+## Step 6: Create directory structure and render sprint
 
-sprintctl sprint render --output docs/sprint/current.md
+  mkdir -p docs/sprint/archive docs/knowledge docs/agent-guidance
+  sprintctl render > docs/sprint/current.md
 
-## Step 9: Verify
+## Step 7: Verify
 
-Run: sprintctl sprint current, sprintctl item list --sprint current, kctl list. Confirm: active sprint with dates, 8+ items, AGENTS.md exists, docs/sprint/current.md exists, no stale claims.
+Run: sprintctl sprint show, sprintctl item list --sprint-id <id>, sprintctl claim list-sprint --sprint-id <id>, sprintctl maintain check --sprint-id <id>
+
+Confirm: active sprint with dates, 8+ items, AGENTS.md exists, docs/sprint/current.md exists, no stale claims.
 ```
 
 ---
@@ -62,19 +69,23 @@ Run: sprintctl sprint current, sprintctl item list --sprint current, kctl list. 
 
 ### "Assess first" section
 
-This is the most important part. An agent that initializes without reading what exists will clobber config or create duplicate sprints. Always assess before initializing.
+This is the most important part. An agent that initializes without reading what exists will create duplicate sprints or overwrite config. Always assess before creating anything.
+
+### "No init command" note
+
+sprintctl does not have an `init` command. Agents sometimes hallucinate one. The database is created automatically on first use. The only setup needed is the `SPRINTCTL_DB` env var for per-project scoping.
 
 ### Sprint naming
 
-The prompt specifies `YYYY-SNN-hearth-workflow-overture` as a default but acknowledges this needs to be adapted. Agents should choose an anchor that fits the repo's actual energy, not just copy the example.
+The prompt specifies `hearth-workflow-overture` as a default but acknowledges this needs to be adapted. Agents should choose an anchor that fits the repo's actual energy, not just copy the example.
 
 ### Track count guidance
 
-"3-5 tracks" is explicit because agents tend to over-track. The example track sets are starting points. The agent should adapt based on the repo.
+"3-5 tracks" is explicit because agents tend to over-track. Tracks are created implicitly via `--track <name>` on item creation — no separate creation command needed.
 
 ### Items requirement: "Not placeholders"
 
-This instruction prevents agents from creating items like "TODO: figure out auth" which are worse than having no item at all. The items created during bootstrap should be the actual first sprint's work.
+Agents tend to create items like "TODO: figure out auth" which are useless. Sprint items must have outcome-focused titles and enough note context to be claimable.
 
 ### AGENTS.md as non-optional
 
@@ -82,13 +93,13 @@ Agents entering a repo without AGENTS.md have no coordination context. The boots
 
 ### Verify step
 
-Bootstrap is not done until the verification commands pass. Agents sometimes skip this — the explicit verification step in the prompt ensures the output is actually usable.
+Bootstrap is not done until the verification commands pass. The explicit verification step ensures the output is actually usable.
 
 ---
 
 ## Adapting the prompt
 
-When pasting this into a session for a specific repo, you can prepend context:
+When pasting this into a session for a specific repo, prepend context:
 
 ```
 [Context: This is a repo for <brief description>. It uses <tech stack>. The primary

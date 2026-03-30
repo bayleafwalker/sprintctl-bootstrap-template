@@ -10,9 +10,9 @@
 raw idea → quick capture → shaping session → shaped items in sprint
 ```
 
-1. Capture the raw idea immediately (don't let it disappear)
+1. Capture the raw idea immediately — don't lose it
 2. Later (same session or next), shape it into one or more specific items
-3. Assign to track, set priority, confirm scope is bounded
+3. Assign to track, confirm scope is bounded
 4. Item is now claimable
 
 ---
@@ -20,7 +20,7 @@ raw idea → quick capture → shaping session → shaped items in sprint
 ## Entry condition
 
 - An idea, observation, or requirement exists that isn't in sprintctl yet
-- OR a backlog of raw/unshaped items needs to be processed
+- OR unshaped backlog items need to be processed
 - OR a new sprint is being created and needs to be populated
 
 ---
@@ -29,76 +29,105 @@ raw idea → quick capture → shaping session → shaped items in sprint
 
 ### Step 1: Capture
 
-Capture immediately. Don't try to shape it now if you don't have full context.
+Capture immediately. Don't try to shape now if you don't have full context.
 
 ```bash
-# Quick capture as backlog item
-sprintctl item create \
-  --sprint current \
-  --track docs \
-  --title "Add handoff pattern for decision-needed blocks" \
-  --state backlog \
-  --note "Saw a case where agent didn't know how to record that a human decision was needed. Need a concrete pattern for this."
+# Find the active sprint ID
+sprintctl sprint show --json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['id'])"
 
-# If the sprint is unclear, use a staging area
-sprintctl item create \
-  --sprint backlog \
+# Quick capture as pending item (pending = not yet started, ready to shape/claim)
+sprintctl item add \
+  --sprint-id <sprint-id> \
+  --track docs \
+  --title "Add handoff pattern for decision-needed blocks"
+
+# Capture context via a note on the item
+sprintctl item note \
+  --id <item-id> \
+  --type decision \
+  --summary "Capture: need a pattern for when an agent can't proceed without a human decision" \
+  --actor agent
+```
+
+If the right sprint isn't clear, add to a backlog sprint:
+
+```bash
+# Find or list all sprints including backlog
+sprintctl sprint list --include-backlog
+
+sprintctl item add \
+  --sprint-id <backlog-sprint-id> \
   --track unsorted \
-  --title "Investigate sprintctl scan behavior on symlinked paths" \
-  --state raw
+  --title "Investigate sprintctl scan behavior on symlinked paths"
 ```
 
 ### Step 2: Shape
 
-Come back with context and turn raw items into specific, executable items.
+Come back with context and make items specific and executable.
 
 ```bash
-# List unshaped items
-sprintctl item list --state backlog,raw
+# List pending (unstarted) items in the sprint
+sprintctl item list --sprint-id <sprint-id> --status pending
 
-# Shape an item: update title to be outcome-focused, add description
-sprintctl item update <item-id> \
-  --title "Document decision-needed handoff pattern in docs/agent-guidance/handoff-patterns.md" \
-  --description "Add a 4th handoff pattern: decision-needed. Should include: when to use it, what to include, example note, how the next human or agent should respond." \
-  --priority medium \
+# Read item details including any existing notes
+sprintctl item show --id <item-id>
+```
+
+Shaping is done through notes. If the original title was a rough capture, add a note
+clarifying the actual scope and done condition:
+
+```bash
+sprintctl item note \
+  --id <item-id> \
+  --type decision \
+  --summary "Shaped: scope is to add a decision-needed pattern to docs/agent-guidance/handoff-patterns.md" \
+  --detail "Cover: when to use, what to include, example note, how the next agent/human should respond. Done when pattern is written and entry-checklist references it." \
+  --actor agent
+```
+
+If an item is too big, split it into focused sub-items and block the original:
+
+```bash
+# Create specific sub-items
+sprintctl item add \
+  --sprint-id <sprint-id> \
   --track docs \
-  --state open
+  --title "Write decision-needed handoff example in handoff-patterns.md"
+
+sprintctl item add \
+  --sprint-id <sprint-id> \
+  --track docs \
+  --title "Update entry-checklist.md to reference decision-needed pattern"
+
+# Mark original as blocked (was split; depends on sub-items)
+sprintctl item status --id <original-id> --status blocked --actor agent
+sprintctl item note \
+  --id <original-id> \
+  --type decision \
+  --summary "Split into two focused items. Blocked pending completion of sub-items." \
+  --actor agent
 ```
 
 ### Step 3: Validate scope
 
-Before finalizing, check:
-- Is this one item or should it be split into two?
+Before considering an item shaped, check:
 - Is the acceptance criteria clear (what does "done" look like)?
-- Is the priority right relative to other open items?
+- Is it small enough to complete in a focused session?
+- Is the track assignment right?
 
 ```bash
-# Check what's already in the sprint to calibrate priority
-sprintctl item list --sprint current --state open --sort priority
-
-# If the item is too big, split it
-sprintctl item create \
-  --sprint current \
-  --track docs \
-  --title "Write decision-needed handoff example" \
-  --state open \
-  --parent <original-item-id>
-
-sprintctl item create \
-  --sprint current \
-  --track docs \
-  --title "Update entry-checklist.md to reference decision-needed pattern" \
-  --state open \
-  --parent <original-item-id>
+# Review the sprint shape overall
+sprintctl sprint show --detail
+sprintctl item list --sprint-id <sprint-id> --status pending
 ```
 
 ---
 
 ## Artifacts produced
 
-- One or more shaped items in sprintctl with state `open`
-- Items assigned to tracks with priorities set
-- Possibly parent/child relationships if a large item was split
+- One or more pending items in sprintctl with clear titles
+- Notes with rationale and "done" conditions
+- Possibly blocked parent items if something was split
 
 ---
 
@@ -108,9 +137,9 @@ sprintctl item create \
 - Raw idea exists somewhere (head, notes, conversation)
 
 **Exit:**
-- Idea is captured as a shaped sprintctl item (state: `open`)
-- OR consciously rejected (add a comment explaining why and close it)
-- OR deferred to a future sprint (state: `backlog`, no sprint assignment)
+- Idea is captured as a pending sprintctl item with clear scope
+- OR consciously rejected (add a note explaining why, mark done)
+- OR deferred to backlog sprint (pending, in backlog sprint)
 
 ---
 
@@ -118,7 +147,7 @@ sprintctl item create \
 
 **Claims:** Don't claim items during shaping. Shaping is not implementation work. Claim when you're about to start implementing.
 
-**Handoffs:** If you're mid-shaping and need to stop, leave a note on unshaped items with enough context to resume. Don't leave items in a half-shaped state without explanation.
+**Handoffs:** If you're mid-shaping and need to stop, leave a note on unshaped items with enough context to resume.
 
 ---
 
@@ -131,4 +160,4 @@ Good: `"Add decision-needed pattern to docs/agent-guidance/handoff-patterns.md"`
 
 **Size gauge:** If an item will take more than 2-3 hours of focused work, split it. If it takes less than 15 minutes, consider combining it with a related item.
 
-**Don't shape during emergencies.** If something urgent is happening, capture raw and shape later. A bad item shape is worse than a rough capture.
+**Don't shape during emergencies.** Capture raw and shape later. A rough capture is better than a badly-shaped item.

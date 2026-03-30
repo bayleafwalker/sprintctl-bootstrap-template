@@ -9,16 +9,16 @@ This workflow typically runs at the end of a sprint or during a knowledge-focuse
 ## Normal path
 
 ```
-sprint events → kctl-candidate tags → review candidates → draft entries → publish
+sprint events → candidates identified → triage → draft entries → publish to docs/knowledge/
 ```
 
 ---
 
 ## Entry condition
 
-- Items exist in the current (or recent) sprint tagged `kctl-candidate`
+- Items exist in the current (or recent) sprint with `pattern-noted` or `lesson-learned` events
 - OR a sprint is wrapping up and knowledge capture hasn't happened yet
-- OR you're running a dedicated knowledge sprint (phase: `archive` or `survey`)
+- OR you're running a dedicated knowledge-pass session
 
 ---
 
@@ -26,86 +26,98 @@ sprint events → kctl-candidate tags → review candidates → draft entries �
 
 ### Step 1: Collect candidates
 
+sprintctl stores decisions and patterns as events. Review them directly:
+
 ```bash
-# List all candidates from current sprint
-kctl list --state candidate --sprint current
+# List all events for the sprint to find candidates
+sprintctl event list --sprint-id <sprint-id> --type pattern-noted
+sprintctl event list --sprint-id <sprint-id> --type lesson-learned
+sprintctl event list --sprint-id <sprint-id> --type decision
+sprintctl event list --sprint-id <sprint-id> --type risk-accepted
 
-# List candidates across all sprints (if doing a larger knowledge pass)
-kctl list --state candidate
-
-# Also check items with kctl-candidate tag that may not be in kctl yet
-sprintctl item list --sprint current --tag kctl-candidate
+# Or get full event history in JSON for scripted review
+sprintctl event list --sprint-id <sprint-id> --json
 ```
 
-For each candidate, read the original item and its comments to understand the full context.
+For each candidate item, read the full item and its events:
 
 ```bash
-sprintctl item show <item-id>
+sprintctl item show --id <item-id>
+```
+
+If kctl is available, it reads these same events:
+
+```bash
+# kctl reads from sprintctl events — run its preflight check first
+sprintctl maintain check --sprint-id <sprint-id>
+kctl list --state candidate
 ```
 
 ### Step 2: Triage
 
-Not every candidate becomes a published entry. Before drafting, triage:
+Not every event becomes a published entry. Before drafting:
 
 **Promote:** Decision with rationale, reusable pattern, accepted risk, recurring lesson
-**Reject:** Mechanical progress, dead end that's genuinely dead, obvious-in-hindsight, temporary workaround
+**Reject:** Mechanical progress, dead end that's genuinely over, obvious-in-hindsight, temporary workaround
+
+Record the triage decision:
 
 ```bash
-# Reject a candidate
-kctl candidate reject <slug> \
-  --reason "Dead end — approach was abandoned and alternative is obvious from code"
-
-# Or just note rejection in the item
-sprintctl item comment <item-id> \
-  --note "kctl-candidate rejected: not worth promoting — this was a one-time config choice specific to this repo with no reuse value"
+# For items you're rejecting as knowledge candidates
+sprintctl item note \
+  --id <item-id> \
+  --type decision \
+  --summary "kctl-candidate rejected: one-time config choice specific to this repo, no reuse value" \
+  --actor agent
 ```
 
 ### Step 3: Draft entries
 
-For candidates that pass triage, draft the knowledge entry.
-
-```bash
-# Create a draft entry
-kctl draft <slug>
-```
+For candidates that pass triage, write the knowledge entry as a markdown file in `docs/knowledge/`.
 
 A good entry has:
 - **Summary:** One sentence — what does this entry tell you?
 - **Context/Rationale:** Why was this decision made or pattern adopted?
 - **Application:** When and how to use this
-- **Limitations/caveats:** When it doesn't apply
-- **Origin:** Sprint and item where it came from
+- **Limitations:** When it doesn't apply
+- **Origin:** Sprint name and item where it came from
 
 The entry must be self-contained — readable without the sprint context.
 
-### Step 4: Promote to reviewed
-
 ```bash
-# Mark the draft as ready for review
-kctl promote <slug>
-
-# Or review it yourself if you have enough distance
-kctl review <slug>
-# (Opens the entry for editing, then mark as reviewed)
-kctl mark-reviewed <slug>
+# Create the knowledge file
+mkdir -p docs/knowledge
+touch docs/knowledge/<slug>.md
+# Edit the file with the entry content
 ```
 
-### Step 5: Publish
+Record the draft in sprintctl:
 
 ```bash
-# Publish the entry (creates docs/knowledge/<slug>.md)
-kctl publish <slug>
+sprintctl item note \
+  --id <item-id> \
+  --type pattern-noted \
+  --summary "Drafted knowledge entry: docs/knowledge/<slug>.md" \
+  --actor agent
 ```
 
-Verify the published entry:
-- Is it readable cold?
+### Step 4: Review and publish
+
+Review your own draft:
+- Is it readable cold (without the sprint context)?
 - Is the slug descriptive?
 - Are related entries cross-referenced?
 
 ```bash
-# List all published entries
-kctl list --state published
+# After review, record that the entry is published
+sprintctl item note \
+  --id <item-id> \
+  --type decision \
+  --summary "Published: docs/knowledge/<slug>.md. Entry covers: <one-sentence summary>." \
+  --actor agent
 ```
+
+If kctl is available, run its promotion commands per its own documentation.
 
 ---
 
@@ -113,76 +125,76 @@ kctl list --state published
 
 **Sprint item:** WF-003 — "Discover anchor-first naming order produces better sprint names"
 
-During work, the agent tagged the item and left this candidate note:
-
-```
-kctl-candidate: sprint-naming-anchor-first
-When naming sprints in this session, choosing the anchor word first (before focus
-and phase) consistently produced more coherent names. Focus-first led to flat,
-literal combinations. This pattern is worth recording.
-Source: WF-003, 2026-S01-hearth-workflow-overture
-```
-
-**Draft the entry:**
+During work, the agent recorded this event:
 
 ```bash
-kctl draft sprint-naming-anchor-first
+sprintctl item note \
+  --id 3 \
+  --type pattern-noted \
+  --summary "kctl-candidate: sprint-naming-anchor-first — choosing anchor word first consistently produced more coherent names. Focus-first led to flat, literal combinations." \
+  --detail "Source: WF-003, 2026-S01-hearth-workflow-overture. When naming sprints, pick anchor first to set the sprint's register, then constrain focus and phase vocabulary from there." \
+  --actor agent
 ```
 
-Write the entry:
+**Triage:** Promote. Reusable naming pattern with clear rationale.
+
+**Draft** `docs/knowledge/sprint-naming-anchor-first.md`:
 
 ```markdown
 # Sprint Naming: Choose Anchor First
 
 **Origin:** 2026-S01-hearth-workflow-overture, WF-003
 **Tags:** sprint-naming, workflow
-**State:** candidate → reviewed → published
 
 ## Summary
 When constructing a sprint name (YYYY-SNN-anchor-focus-phase), choose the
 anchor word before the focus and phase components.
 
 ## Rationale
-During sprint naming sessions in 2026-S01, choosing focus first led to flat,
-literal names ("schema-schema-build"). Choosing anchor first set the sprint's
-register and constrained vocabulary for the other two components naturally.
-"Forge" leads to "build" or "weave"; "harbor" leads to "survey" or "harden".
+During sprint naming in 2026-S01, choosing focus first led to flat, literal
+names ("schema-schema-build"). Choosing anchor first set the sprint's register
+and constrained vocabulary for the other components naturally — "forge" leads
+to "build" or "weave"; "harbor" leads to "survey" or "harden".
 
 ## Application
 1. Read the sprint's backlog to understand the work's character
 2. Pick the anchor that fits the sprint's energy (see docs/sprint-naming.md)
-3. Choose focus and phase from the constrained vocabulary that fits the anchor
+3. Choose focus and phase that fit the anchor's implied register
 
 ## Limitations
-Applies to naming new sprints. Not applicable when renaming existing sprints
+Applies to naming new sprints. Not applicable when renaming an existing sprint
 (don't rename sprints — the name is a fixed identifier).
 
 ## Related
 - docs/sprint-naming.md — vocabulary and naming rules
 ```
 
-**Promote and publish:**
-
+**Record publication:**
 ```bash
-kctl promote sprint-naming-anchor-first
-kctl publish sprint-naming-anchor-first
-# Creates: docs/knowledge/sprint-naming-anchor-first.md
+sprintctl item note \
+  --id 3 \
+  --type decision \
+  --summary "Published: docs/knowledge/sprint-naming-anchor-first.md" \
+  --actor agent
 ```
 
 ---
 
 ## Example: rejecting a candidate
 
-**Candidate note on item DOC-012:**
+**Event on item DOC-012:**
 ```
-kctl-candidate: used h2 headers instead of h3 for workflow step headings
+pattern-noted: used h2 headers instead of h3 for workflow step headings
 ```
 
-**Triage decision:** Reject. This is a one-time formatting choice with no reuse value and is obvious from reading the docs.
+**Triage decision:** Reject. One-time formatting choice, no reuse value, obvious from reading the docs.
 
 ```bash
-kctl candidate reject doc-012-header-level \
-  --reason "Formatting preference, not a reusable pattern. Obvious from docs."
+sprintctl item note \
+  --id 12 \
+  --type decision \
+  --summary "kctl-candidate rejected: formatting preference with no reuse value. Obvious from docs." \
+  --actor agent
 ```
 
 ---
@@ -190,34 +202,52 @@ kctl candidate reject doc-012-header-level \
 ## Artifacts produced
 
 - Published entries in `docs/knowledge/<slug>.md`
-- Rejected candidates with documented reasons
-- Sprint summary updated with knowledge promotion record
+- Triage decisions recorded on sprint items
+- Events updated to reflect promotion/rejection outcomes
 
 ---
 
 ## Where claims/handoffs apply
 
-Knowledge promotion work doesn't usually require a claim unless you're doing a multi-session knowledge sprint. For end-of-sprint knowledge passes, it's usually a single focused session.
+Knowledge promotion doesn't usually require a claim unless you're doing a multi-session knowledge sprint.
 
 If handing off mid-promotion:
 
 ```bash
-sprintctl item handoff KN-001 --note "
-  Status: Triaged 8 candidates — 5 to promote, 3 rejected. Drafted 3 entries.
-  Next: Draft remaining 2 entries (slugs: claim-context-norms, track-sizing-heuristic).
-    Then promote and publish all 5.
-  Files: docs/knowledge/ — 3 files created, 2 more needed.
-"
+sprintctl item note \
+  --id <item-id> \
+  --type claim-handoff \
+  --summary "Triaged 8 candidates: 5 to promote, 3 rejected. Drafted 3 entries." \
+  --detail "Next: Draft remaining 2 entries (slugs: claim-context-norms, track-sizing-heuristic). Then review and publish all 5. Files: docs/knowledge/ — 3 files created, 2 more needed." \
+  --actor agent
+
+sprintctl claim handoff \
+  --id <claim-id> --claim-token <claim-token> \
+  --actor next-session --mode rotate
 ```
+
+---
+
+## What to promote vs. skip
+
+**Promote:**
+- Non-obvious decisions with rationale
+- Reusable patterns the next agent would rediscover without this
+- Accepted risks with explicit tradeoffs
+- Lessons that will likely matter again
+
+**Skip:**
+- Every implementation note
+- Temporary dead ends that won't recur
+- Ordinary mechanical progress
+- Decisions that are obvious from reading the code
 
 ---
 
 ## Cadence recommendation
 
-**During sprint:** Tag candidates in the moment. Don't save this for the end — context degrades.
+**During sprint:** Record `pattern-noted` and `lesson-learned` events in the moment. Context degrades fast.
 
-**End of sprint:** Dedicate a session to triage and promotion before archiving the sprint.
+**End of sprint:** Dedicate a focused session to triage and promotion before archiving.
 
 **Between sprints:** New sprint items can reference published knowledge from the previous sprint.
-
-**Annual:** Consider a `kctl-audit` item to review stale entries and retire knowledge that no longer applies.

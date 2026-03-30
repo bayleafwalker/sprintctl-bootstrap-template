@@ -8,63 +8,54 @@ Concrete patterns for handing off sprint items when stopping work. Use the patte
 
 Leave a handoff note whenever:
 - You're stopping work on an item that isn't done
-- You're closing an item with useful context for future work
 - You're blocking an item (block reason is a type of handoff)
 - You've made decisions during work that the next agent needs to know
 
-Don't leave handoff notes for items you're closing clean with a summary — just use the close note.
+Don't leave handoff notes for items you're closing cleanly — the completion note is enough.
 
 ---
 
-## Pattern 1: Normal Completion Handoff
+## Pattern 1: Normal Completion
 
-Use when: Work is done. Closing the item but the close note isn't enough to capture what was produced.
-
-**When to use:**
-- Item is complete
-- The work produced multiple files or non-obvious artifacts
-- Future work in this track needs to know what was produced
+Use when: Work is done. The item is being closed.
 
 **Template:**
 ```
-Status: Complete.
-Produced: <list of files/changes/artifacts>
+Done: <what was produced, file paths, line counts>
 Notes: <anything a future agent should know about the work>
 Next item suggestion: <optional — what logically follows>
 ```
 
 **Example:**
 ```bash
-sprintctl item close DOC-002 --note "
-  Status: Complete.
-  Produced:
-    - docs/agent-guidance/entry-checklist.md (8 steps, ~120 lines)
-    - docs/agent-guidance/handoff-patterns.md (4 patterns, this file)
-    - docs/agent-guidance/claim-patterns.md (3 scenarios, ~90 lines)
-  Notes: Entry checklist references claim-patterns.md in step 8 — if claim-patterns
-    changes substantially, update the reference.
-  Next item suggestion: DOC-003 (examples/ docs) is the logical next track item.
-"
-```
+# Record completion note
+sprintctl item note --id 2 --type decision \
+  --summary "Done. Produced: entry-checklist.md (8 steps, ~120 lines), handoff-patterns.md (4 patterns), claim-patterns.md (3 scenarios, ~90 lines). Note: entry-checklist references claim-patterns.md in step 8 — if claim-patterns changes substantially, update that reference." \
+  --actor claude-session-1
 
-No claim release needed — closing the item releases the claim automatically.
+# Close the item
+sprintctl item status --id 2 --status done \
+  --actor claude-session-1 --claim-id 1 --claim-token tok_abc
+
+# Release claim
+sprintctl claim release --id 1 --claim-token tok_abc --actor claude-session-1
+```
 
 ---
 
-## Pattern 2: Blocked / Waiting Handoff
+## Pattern 2: Blocked / Waiting
 
 Use when: Work cannot continue until something external resolves.
 
 **When to use:**
 - Waiting on a dependency (another item, a decision, external input)
-- Encountered an error that requires investigation outside this session
-- Discovered the item needs human input before continuing
+- Encountered an error requiring investigation outside this session
+- Item needs human input before continuing
 
 **Template:**
 ```
-Status: Blocked.
+Blocked: <specific description of what's blocking>
 Done so far: <what was completed before the block>
-Block: <specific description of what's blocking>
 Unblock condition: <exactly what needs to happen to unblock>
 Files: <any in-progress files, their state>
 ```
@@ -73,23 +64,25 @@ Files: <any in-progress files, their state>
 
 **Example:**
 ```bash
-sprintctl item block WF-005 --reason "
-  Status: Blocked.
-  Done so far: Makefile created with help and sprint-current targets. 3 of 5 targets done.
-  Block: knowledge-status and validate-docs targets need to know the kctl list output
-    format — can't write the instructions without knowing what the command returns.
-  Unblock condition: Run 'kctl list' in a repo with knowledge entries and record the
-    output format, OR check kctl docs for list output format.
-  Files: Makefile (in progress, targets 1-3 done, 4-5 incomplete, clearly marked TODO).
-"
-sprintctl claim release --item WF-005
+# Record block context
+sprintctl item note --id 5 --type decision \
+  --summary "Blocked: Makefile knowledge-status and validate-docs targets need kctl list output format. Can't write instructions without knowing what the command returns." \
+  --detail "Done so far: Makefile created with help and sprint-current targets (3 of 5 done). Unblock: run 'kctl list' in a repo with entries and record output format, OR check kctl docs. Files: Makefile in progress, targets 1-3 done, 4-5 marked TODO." \
+  --actor claude-session-1
+
+# Block the item
+sprintctl item status --id 5 --status blocked \
+  --actor claude-session-1 --claim-id 3 --claim-token tok_ghi
+
+# Release claim — blocked items should not hold claims
+sprintctl claim release --id 3 --claim-token tok_ghi --actor claude-session-1
 ```
 
 ---
 
 ## Pattern 3: Partial Progress Handoff
 
-Use when: Work is underway but you're stopping mid-task. The item is not done, not blocked — just paused.
+Use when: Work is underway but you're stopping mid-task. Not done, not blocked — just paused.
 
 **When to use:**
 - Session is ending with work incomplete
@@ -98,35 +91,33 @@ Use when: Work is underway but you're stopping mid-task. The item is not done, n
 
 **Template:**
 ```
-Status: In progress. <percentage or milestone complete>
+Status: In progress. <milestone or percentage complete>
 Done: <list of what's complete>
-Next: <exactly what to do next — be specific enough that a cold agent can continue>
+Next: <exactly what to do next — specific enough for a cold agent>
 Files: <files changed, their state, relevant line numbers if helpful>
 Blockers: none (or describe if any)
 ```
 
 **Example:**
 ```bash
-sprintctl item handoff DOC-001 --note "
-  Status: In progress. 3 of 5 workflow docs complete.
-  Done:
-    - docs/workflows/A-idea-to-backlog.md (complete, ~150 lines)
-    - docs/workflows/B-direct-implementation.md (complete, ~180 lines)
-    - docs/workflows/C-wider-scope-review.md (complete, ~170 lines)
-  Next:
-    - Write D-knowledge-promotion.md (see docs/sprint-workflow.md stage 5 for content outline)
-    - Write E-fresh-repo-bootstrap.md (should feel like a walkthrough, not a reference doc)
-  Files: docs/workflows/ directory. A, B, C done. D and E don't exist yet.
-  Blockers: none.
-"
-sprintctl claim release --item DOC-001
+# Record handoff note on the item
+sprintctl item note --id 1 --type claim-handoff \
+  --summary "In progress: 3 of 5 workflow docs complete." \
+  --detail "Done: A-idea-to-backlog.md, B-direct-implementation.md, C-wider-scope-review.md (all complete). Next: Write D-knowledge-promotion.md (see docs/sprint-workflow.md stage 5 for content outline), then E-fresh-repo-bootstrap.md (walkthrough style, not reference). Files: docs/workflows/ — A, B, C done; D and E don't exist yet. Blockers: none." \
+  --actor claude-session-1
+
+# Transfer claim to next session (mints new token)
+sprintctl claim handoff \
+  --id 1 --claim-token tok_abc \
+  --actor claude-session-2 --mode rotate \
+  --note "3/5 workflow docs done. D and E remaining."
 ```
 
 ---
 
-## Pattern 4: Decision-Needed Handoff
+## Pattern 4: Decision-Needed
 
-Use when: Work is blocked or paused specifically because a decision needs to be made that is above the agent's authority or requires human input.
+Use when: Work is blocked specifically because a decision needs to be made that is above the agent's authority or requires human input.
 
 **When to use:**
 - An architectural choice came up that the agent shouldn't make unilaterally
@@ -136,49 +127,42 @@ Use when: Work is blocked or paused specifically because a decision needs to be 
 
 **Template:**
 ```
-Status: Paused — decision needed.
+Paused — decision needed.
 Context: <what was discovered or what requires a decision>
-Decision needed: <specific question that needs answering>
-Options: <if applicable, list the options with brief tradeoffs>
+Decision needed: <specific question>
+Options: <list options with brief tradeoffs>
 Impact: <what changes depending on the decision>
 Work state: <what's done, what's waiting>
 ```
 
 **Example:**
 ```bash
-sprintctl item handoff WF-008 --note "
-  Status: Paused — decision needed.
-  Context: While writing the review policy section of AGENTS.md, found that the
-    current policy says 'schema changes require review' but doesn't define what
-    counts as a schema change for this repo (no formal schema exists).
-  Decision needed: Should 'schema change' in review policy mean:
-    (a) any change to .sprintctl/config.yaml or .kctl/config.yaml
-    (b) any change to the track taxonomy in AGENTS.md
-    (c) both of the above
-  Options:
-    (a) narrow — only catches config file changes, misses AGENTS.md track changes
-    (b) broader — catches track changes but might feel heavyweight for minor updates
-    (c) broadest — most consistent with the spirit of the policy
-  Impact: Defines which items need the Workflow C path vs. Workflow B.
-  Work state: AGENTS.md review policy section written up to the schema-change
-    clause. File saved. Can continue once decision is made.
-"
-sprintctl item tag WF-008 --add decision-needed
-sprintctl claim release --item WF-008
+# Record the decision-needed handoff
+sprintctl item note --id 8 --type claim-handoff \
+  --summary "Paused — decision needed: what counts as a 'schema change' for review policy?" \
+  --detail "Context: writing AGENTS.md review policy — 'schema changes require review' but no formal schema exists. Decision: does 'schema change' mean (a) .sprintctl config changes only, (b) track taxonomy changes in AGENTS.md only, or (c) both? Options: (a) narrow, misses AGENTS.md track changes; (b) broader, catches track changes; (c) broadest, most consistent. Impact: defines which items need Workflow C vs B. Work state: AGENTS.md review policy written up to the schema-change clause. Can continue once decision is made." \
+  --actor claude-session-1
+
+# Block the item pending the decision
+sprintctl item status --id 8 --status blocked \
+  --actor claude-session-1 --claim-id 5 --claim-token tok_xyz
+
+# Release claim
+sprintctl claim release --id 5 --claim-token tok_xyz --actor claude-session-1
 ```
 
-After a decision-needed handoff, the item stays in the sprint. The human or a future session should:
-1. Make the decision
-2. Comment it on the item
-3. Remove the `decision-needed` tag
-4. Re-open the item for continuation
+After a decision-needed block, the human or a future session should:
+1. Record the decision as a note on the item
+2. Return the item to pending
+3. Claim and continue
 
 ```bash
-# Human or future agent resolving a decision-needed handoff
-sprintctl item comment WF-008 \
-  --note "Decision: Use option (c) — schema changes = config file changes OR track taxonomy changes in AGENTS.md."
-sprintctl item tag WF-008 --remove decision-needed
-sprintctl item update WF-008 --state open
+# Resolving a decision-needed block
+sprintctl item note --id 8 --type decision \
+  --summary "Decision: option (c) — schema changes = config file changes OR track taxonomy changes in AGENTS.md." \
+  --actor human
+
+sprintctl item status --id 8 --status pending --actor human
 ```
 
 ---
@@ -186,36 +170,24 @@ sprintctl item update WF-008 --state open
 ## Handoff anti-patterns
 
 **The ghost handoff:**
+```bash
+# Bad — tells the next agent nothing
+sprintctl item note --id 1 --type claim-handoff --summary "Working on this" --actor session
 ```
-# Bad
-sprintctl item handoff DOC-001 --note "Working on this"
-```
-Tells the next agent nothing. Might as well not exist.
 
 **The incomplete block:**
+```bash
+# Bad — no unblock condition
+sprintctl item note --id 5 --type decision --summary "Blocked on kctl output format" --actor session
 ```
-# Bad
-sprintctl item block WF-005 --reason "Blocked on kctl output format"
-```
-What does "unblocked" look like? How does anyone fix this?
 
 **The claim-holding partial:**
+```bash
+# Bad — left a handoff note but didn't transfer or release the claim
+sprintctl item note --id 1 --type claim-handoff --summary "In progress, 3 of 5 done" --actor session
+# (no claim handoff or release — claim still held, blocking others)
 ```
-# Bad
-sprintctl item handoff DOC-001 --note "In progress, 3 of 5 done"
-# (claim not released)
-```
-Claim is still held, blocking others from picking it up. Always release on handoff.
+Always use `claim handoff` (to pass to next session) or `claim release` (to free the item) when leaving a partial. Never leave a claim held on an item you're no longer actively working.
 
-**The novel without signal:**
-```
-# Bad (too long, no structure, no clear next action)
-sprintctl item handoff DOC-001 --note "
-  I spent a lot of time working on this and got through A and B but C was tricky
-  because I had to figure out the right structure for the review table and I went
-  back and forth on whether to use a table or a list and eventually went with a
-  table but then realized the review required vs optional distinction needed more
-  nuance so I added some examples but I'm not sure if they're complete..."
-```
-
+**The wall of text:**
 Keep handoffs structured and scannable. The next agent needs to start working within 2 minutes of reading it.

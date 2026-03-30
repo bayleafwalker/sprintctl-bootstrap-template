@@ -8,9 +8,9 @@ When and how to use claims. Concrete examples for common situations.
 
 A claim signals: "I am actively working on this item. Don't pick it up."
 
-Claims provide coordination in a single-developer + sparse-agent-session workflow. Without claims, two sessions could work the same item concurrently, or an agent could pick up an item that's already in progress.
+Claims coordinate exclusive, time-limited ownership in a single-developer + sparse-agent-session workflow. Without claims, two sessions could work the same item concurrently, or an agent could pick up work already in progress.
 
-The claim context field is the primary signal. "Claimed" with no context is nearly useless.
+**Ownership proof = claim_id + claim_token.** Both are required. The actor label, branch name, and instance ID are advisory metadata only — they are never proof of ownership.
 
 ---
 
@@ -24,7 +24,7 @@ The claim context field is the primary signal. "Claimed" with no context is near
 **No claim needed:**
 - Read-only orientation (reading AGENTS.md, sprint state)
 - Tiny edits under 10 lines with no dependencies
-- Running verification commands
+- Running verification or maintenance commands
 
 When in doubt, claim. A claim you release after 5 minutes has zero cost.
 
@@ -34,173 +34,218 @@ When in doubt, claim. A claim you release after 5 minutes has zero cost.
 
 Always claim before writing a single line of output. The claim is a coordination signal, not a post-hoc announcement.
 
-**Template:**
 ```bash
 sprintctl claim create \
-  --item <item-id> \
-  --context "<what you're building/writing, approach, expected scope>"
+  --item-id <item-id> \
+  --actor <your-session-id> \
+  --runtime-session-id "${CODEX_THREAD_ID:-manual-session}" \
+  --branch feat/your-work \
+  --json
+```
+
+**Save the output.** The `claim_token` is returned once and not retrievable later (you can re-display it with `claim show` if you still hold it, but treat it as sensitive).
+
+Record your intent before starting:
+
+```bash
+sprintctl item note \
+  --id <item-id> \
+  --type decision \
+  --summary "Starting: <what you're building, approach, expected scope>" \
+  --actor <your-session-id>
 ```
 
 **Example — doc item:**
 ```bash
 sprintctl claim create \
-  --item DOC-002 \
-  --context "Writing all three agent-guidance docs: entry-checklist.md, handoff-patterns.md, claim-patterns.md. Working in order. Each ~100-200 lines. Entry checklist first since handoff and claim patterns reference it."
+  --item-id 2 \
+  --actor claude-session-1 \
+  --runtime-session-id "${CODEX_THREAD_ID:-session-1}" \
+  --branch docs/agent-guidance \
+  --json
+# → {claim_id: 1, claim_token: "tok_abc123"}
+
+sprintctl item note --id 2 --type decision \
+  --summary "Writing all three agent-guidance docs: entry-checklist.md, handoff-patterns.md, claim-patterns.md. Working in order. Each ~100-200 lines. Entry checklist first since handoff and claim patterns reference it." \
+  --actor claude-session-1
 ```
 
 **Example — implementation item:**
 ```bash
 sprintctl claim create \
-  --item CORE-003 \
-  --context "Writing src/config.py config loader. Will use pydantic-settings for env var loading. Fields: DATABASE_URL (required), SECRET_KEY (required), PORT (default 8000), LOG_LEVEL (default info). Will write unit tests in tests/test_config.py alongside."
-```
+  --item-id 3 \
+  --actor claude-session-1 \
+  --runtime-session-id "${CODEX_THREAD_ID:-session-1}" \
+  --branch feat/config-loader \
+  --json
 
-**Example — infra item:**
-```bash
-sprintctl claim create \
-  --item INFRA-001 \
-  --context "Creating Dockerfile for dev. Python 3.12-slim base, pip install from requirements.txt, copy src. Expose 8000. Will also add .dockerignore."
-```
-
----
-
-## What to put in claim context
-
-A useful claim context answers three questions:
-1. **What am I producing?** (file paths, feature, change)
-2. **How am I approaching it?** (key decisions already made)
-3. **What's the rough scope?** (so others know if this will be 30 minutes or 3 hours)
-
-**Too sparse:**
-```
---context "Working on the docs"
-```
-
-**Too verbose:**
-```
---context "I'm going to start by reading the existing docs to understand the current state and then I'll figure out what's missing and then write the content for each section and make sure each section has examples and then I'll review the whole thing and make sure it flows well..."
-```
-
-**Right:**
-```
---context "Writing entry-checklist.md: 8-step checklist for agent entry. Steps: read AGENTS.md, check sprint, list items, check claims, read handoffs, scan blocked items, identify track, decide whether to claim. ~120 lines with command examples."
+sprintctl item note --id 3 --type decision \
+  --summary "Writing src/config.py: pydantic-settings for env var loading. Fields: DATABASE_URL (required), SECRET_KEY (required), PORT (default 8000), LOG_LEVEL (default info). Tests in tests/test_config.py alongside." \
+  --actor claude-session-1
 ```
 
 ---
 
-## Updating a claim mid-work
-
-Update the claim context if your approach changes materially. Don't update for minor variations.
-
-**When to update:**
-- You're going to produce different artifacts than originally planned
-- You discovered the scope is significantly larger or smaller
-- You changed your technical approach
+## Moving an item to active requires the token
 
 ```bash
-sprintctl claim update \
-  --item DOC-002 \
-  --context "Changed approach: splitting entry-checklist into two files. Steps 1-5 (orientation) stay in entry-checklist.md. Steps 6-8 (action) moving to a new starting-work.md. Original plan was one file but it was getting too long."
+sprintctl item status \
+  --id <item-id> \
+  --status active \
+  --actor <your-session-id> \
+  --claim-id <claim-id> \
+  --claim-token <claim-token>
 ```
 
-**When not to update:**
-- You're 10 lines further than when you claimed
-- Minor wording changes
-- Adding one more example than planned
+This is the enforcement gate. Sprintctl verifies `claim_id + claim_token` before allowing the transition.
+
+---
+
+## Keeping a claim alive during long sessions
+
+Claims expire (default TTL: 300 seconds). Send heartbeats during long sessions:
+
+```bash
+sprintctl claim heartbeat \
+  --id <claim-id> \
+  --claim-token <claim-token> \
+  --actor <your-session-id>
+```
 
 ---
 
 ## Releasing a claim cleanly
 
-Release the claim when you're done with the item (or handing off).
-
-**On close:** Claims are automatically released when you close an item. No explicit release needed.
+**On completion:**
 
 ```bash
-# This releases the claim automatically
-sprintctl item close DOC-002 --note "Done. All three agent-guidance docs written."
+# Note completion first
+sprintctl item note --id <item-id> --type decision \
+  --summary "Done: <what you produced, file paths, summary>" \
+  --actor <your-session-id>
+
+# Move to done
+sprintctl item status --id <item-id> --status done \
+  --actor <your-session-id> \
+  --claim-id <claim-id> --claim-token <claim-token>
+
+# Release claim
+sprintctl claim release \
+  --id <claim-id> --claim-token <claim-token> \
+  --actor <your-session-id>
 ```
 
-**On handoff:** Release the claim explicitly after leaving the handoff note.
+**On handoff (passing to next session):**
 
 ```bash
-sprintctl item handoff DOC-002 --note "
-  Status: entry-checklist.md and handoff-patterns.md complete. claim-patterns.md not started.
-  Next: Write claim-patterns.md. Structure: when-to-claim, what-to-put-in-context, updating, releasing.
-  Blockers: none.
-"
-sprintctl claim release --item DOC-002
+# Record handoff note
+sprintctl item note --id <item-id> --type claim-handoff \
+  --summary "Partial progress: <what's done and what's next>" \
+  --detail "<next steps, file locations, blockers if any>" \
+  --actor <your-session-id>
+
+# Transfer ownership — mints new token for next session
+sprintctl claim handoff \
+  --id <claim-id> --claim-token <claim-token> \
+  --actor <next-session-id> \
+  --mode rotate \
+  --note "Handing off mid-work. <brief state summary>"
+# → returns new claim_id and claim_token for next-session-id
 ```
 
-**On block:** Release the claim when blocking an item you won't actively continue.
+The old token is invalidated. The item stays active. The next session picks up with fresh credentials.
+
+**On block:**
 
 ```bash
-sprintctl item block DOC-002 --reason "..."
-sprintctl claim release --item DOC-002
-```
+# Record why blocked
+sprintctl item note --id <item-id> --type decision \
+  --summary "Blocked: <reason — what external condition must be met>" \
+  --actor <your-session-id>
 
-**Do not:** Leave a claim held on an item you've handed off or blocked. A held claim with no active work blocks others and degrades the claim signal quality.
+# Move to blocked
+sprintctl item status --id <item-id> --status blocked \
+  --actor <your-session-id> \
+  --claim-id <claim-id> --claim-token <claim-token>
+
+# Release claim — blocked items should not hold claims
+sprintctl claim release \
+  --id <claim-id> --claim-token <claim-token> \
+  --actor <your-session-id>
+```
 
 ---
 
-## Checking for stale claims
-
-On entry to a repo, check for claims that may have been abandoned.
+## Checking for stale claims on entry
 
 ```bash
-sprintctl claim list
+sprintctl claim list-sprint --sprint-id <sprint-id>
+
+# Purge expired claims automatically
+sprintctl maintain sweep --sprint-id <sprint-id>
 ```
 
 Staleness signals:
-- Claim created more than 24 hours ago with no updates
-- No corresponding handoff note on the item
+- Claim created more than 24 hours ago with no heartbeat
+- No handoff note on the item
 - The claiming session is known to have ended
 
-If you're taking over a stale-claimed item:
+If taking over a legitimately stale-claimed item:
 
 ```bash
 # Read the item first to understand the state
-sprintctl item show <item-id>
+sprintctl item show --id <item-id>
 
-# Release the stale claim
-sprintctl claim release --item <item-id>
+# Use resume to find your own existing claims if re-entering
+sprintctl claim resume --runtime-session-id "${CODEX_THREAD_ID}"
 
-# Create your own claim
+# Or create a new claim if the old one expired
 sprintctl claim create \
-  --item <item-id> \
-  --context "Picking up from stale claim (previous session ended without handoff). <your approach and any context from the item>"
-```
+  --item-id <item-id> \
+  --actor <your-session-id> \
+  --runtime-session-id "${CODEX_THREAD_ID:-session-1}" \
+  --json
 
-Don't just release stale claims silently — add a note to the item explaining what you found.
+# Record context for what you found
+sprintctl item note --id <item-id> --type decision \
+  --summary "Picking up from expired claim: <state observed, approach>" \
+  --actor <your-session-id>
+```
 
 ---
 
 ## Common claim mistakes
 
-**Claiming without context:**
+**Claiming without recording intent:**
 ```bash
 # Bad — no one knows what "working on" means
-sprintctl claim create --item DOC-002 --context "working on this"
+sprintctl claim create --item-id 2 --actor session-1 --json
+# (no follow-up note)
 ```
 
-**Not releasing on handoff:**
+**Using handoff without claim transfer:**
 ```bash
-# Bad — item is handed off but claim is still held
-sprintctl item handoff DOC-002 --note "..."
-# (no claim release)
+# Bad — leaves old claim active, blocking the next session
+sprintctl item note --id 2 --type claim-handoff --summary "..." --actor session-1
+# (no claim handoff or release)
 ```
 
 **Claiming complete items:**
 ```bash
-# Bad — item is already done, claim is pointless
-sprintctl claim create --item DOC-001  # DOC-001 state: done
+# Bad — item is already done
+sprintctl item show --id 1  # status: done
+sprintctl claim create --item-id 1 --actor session-1 --json  # pointless
 ```
 
-**Claiming without intent to work:**
+**Claiming as a reservation:**
 ```bash
-# Bad — "reserving" an item without actually working on it
-# Don't hold claims as reservations
-sprintctl claim create --item DOC-005 --context "I'll get to this later"
+# Bad — "I'll work on this later" is not a claim reason
+# Claims are for active work, not scheduling
 ```
 
-Claims are for active work, not reservations. If you're planning to work on something in a future session, leave it open and claim it when you start.
+**Not having the token when you need it:**
+The token is returned once at claim creation. If you didn't save it, use `claim show` immediately after claiming. If the claim has expired, you'll need to create a new one after the old one is swept.
+
+```bash
+sprintctl claim show --id <claim-id> --claim-token <token>
+```

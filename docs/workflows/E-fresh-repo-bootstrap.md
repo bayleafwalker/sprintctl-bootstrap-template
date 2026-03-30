@@ -6,20 +6,19 @@
 
 ## Scenario
 
-You have a new repository. It may have a README and some code, or it may be completely empty. You want to set up the sprintctl + kctl workflow and have a first sprint ready to execute within one agent session.
+You have a new repository. It may have a README and some code, or it may be empty. You want to set up the sprintctl + kctl workflow and have a first sprint ready to execute within one agent session.
 
 ---
 
 ## Prerequisites
 
-- `sprintctl` installed and accessible in PATH
-- `kctl` installed and accessible in PATH
+- `sprintctl` installed (`pipx install git+https://github.com/bayleafwalker/sprintctl.git`)
 - Git repository initialized
+- direnv available (optional but recommended for per-project DB scope)
 
 ```bash
-# Verify tools
+# Verify
 sprintctl --version
-kctl --version
 git status
 ```
 
@@ -36,212 +35,237 @@ ls -la
 cat README.md 2>/dev/null || echo "(no README)"
 ```
 
-For this walkthrough, we're setting up `my-app` — a small Python web service. The repo has a `src/` directory and a `README.md` but no workflow tooling.
+For this walkthrough: `my-app` — a small Python web service. Has `src/` and a `README.md`, no workflow tooling.
 
-### 2. Initialize sprintctl
+### 2. Set up the database scope
 
-```bash
-sprintctl init
-```
-
-When prompted:
-- **Repo name:** `my-app`
-- **Sprint naming convention:** `YYYY-SNN-<anchor>-<focus>-<phase>` (accept default)
-- **Default sprint length:** `14` (days)
-- **Sprint render path:** `docs/sprint/`
-- **Knowledge path:** `docs/knowledge/`
-
-This creates `.sprintctl/config.yaml` and the necessary directory structure.
+sprintctl defaults to `~/.sprintctl/sprintctl.db`. For per-project isolation, use an `.envrc`:
 
 ```bash
-# Verify initialization
-cat .sprintctl/config.yaml
+cat > .envrc << 'EOF'
+export SPRINTCTL_DB="${PWD}/.sprintctl/sprintctl.db"
+EOF
+
+# If using direnv
+direnv allow
+
+# Or source manually
+source .envrc
 ```
 
-### 3. Initialize kctl
+Add to `.gitignore`:
+
+```
+.sprintctl/
+handoff-*.json
+sprint-*.json
+```
+
+The database is created automatically on first use — no `init` command needed.
+
+### 3. Create the directory structure
 
 ```bash
-kctl init
+mkdir -p docs/sprint/archive docs/knowledge docs/agent-guidance docs/onboarding
 ```
 
-When prompted:
-- **Knowledge path:** `docs/knowledge/` (match sprintctl config)
-- **Candidate tag:** `kctl-candidate`
-- **Review before publish:** `yes`
+### 4. Create the first sprint
 
-This creates `.kctl/config.yaml`.
-
-### 4. Create the directory structure
-
-```bash
-mkdir -p docs/sprint/archive docs/knowledge docs/agent-guidance
-```
-
-### 5. Choose and create the first sprint
-
-The first sprint should be `overture` phase. Look at the repo and decide what the first sprint is actually doing.
+The first sprint should use `overture` phase. Look at the repo and decide what the sprint is actually doing.
 
 For `my-app`:
-- It's a new service with nothing implemented yet
-- First sprint will set up schema, config, and basic API scaffolding
-- Anchor: `forge` (heavy construction from scratch)
-- Focus: `schema` (data modeling and config structure first)
+- New service, nothing implemented yet
+- First sprint: schema, config, and basic API scaffolding
+- Anchor: `forge` (construction from scratch)
+- Focus: `schema` (data modeling first)
 - Phase: `overture` (first sprint)
 
 ```bash
 sprintctl sprint create \
   --name 2026-S01-forge-schema-overture \
+  --status active \
   --start 2026-03-30 \
   --end 2026-04-12
+
+# Note the sprint ID from the output
+sprintctl sprint show
 ```
 
-### 6. Create tracks
+### 5. Create tracks
 
-For a Python web service, 4-5 tracks makes sense:
+Tracks are created implicitly when you add items to them. For `my-app`, you'll use:
+`core`, `api`, `infra`, `docs`
+
+No separate track creation step is needed — just use `--track <name>` when adding items.
 
 ```bash
-sprintctl track create --sprint 2026-S01-forge-schema-overture --name core
-sprintctl track create --sprint 2026-S01-forge-schema-overture --name api
-sprintctl track create --sprint 2026-S01-forge-schema-overture --name infra
-sprintctl track create --sprint 2026-S01-forge-schema-overture --name docs
+# Verify track creation is implicit
+SPRINT_ID=1  # use the actual sprint ID from step 4
 ```
 
-Verify:
+### 6. Create initial items
+
+Create 8-10 specific, shaped items. Not placeholders.
 
 ```bash
-sprintctl track list --sprint 2026-S01-forge-schema-overture
-```
+SPRINT_ID=1  # replace with actual sprint ID
 
-### 7. Create initial items
-
-Create 8-12 specific, shaped items. Not placeholders.
-
-```bash
 # Core track items
-sprintctl item create \
-  --sprint 2026-S01-forge-schema-overture \
+sprintctl item add \
+  --sprint-id $SPRINT_ID \
   --track core \
-  --title "Define data models: User, Session, Event" \
-  --priority high \
-  --description "Create src/models.py with SQLAlchemy models. User needs: id, email, created_at. Session: id, user_id, token, expires_at. Event: id, user_id, type, payload, created_at."
+  --title "Define data models: User, Session, Event"
 
-sprintctl item create \
-  --sprint 2026-S01-forge-schema-overture \
-  --track core \
-  --title "Set up database migration framework with Alembic" \
-  --priority high \
-  --description "Initialize Alembic, create first migration from models.py. Target: SQLite for dev, PostgreSQL config ready for prod."
+sprintctl item note --id 1 --type decision \
+  --summary "Create src/models.py with SQLAlchemy models. User: id, email, created_at. Session: id, user_id, token, expires_at. Event: id, user_id, type, payload, created_at." \
+  --actor setup
 
-sprintctl item create \
-  --sprint 2026-S01-forge-schema-overture \
+sprintctl item add \
+  --sprint-id $SPRINT_ID \
   --track core \
-  --title "Write config loader with environment variable support" \
-  --priority high \
-  --description "src/config.py: load from .env or environment. Required: DATABASE_URL, SECRET_KEY. Optional with defaults: PORT=8000, LOG_LEVEL=info."
+  --title "Set up database migration framework with Alembic"
+
+sprintctl item note --id 2 --type decision \
+  --summary "Initialize Alembic, create first migration from models.py. SQLite for dev, PostgreSQL config ready for prod." \
+  --actor setup
+
+sprintctl item add \
+  --sprint-id $SPRINT_ID \
+  --track core \
+  --title "Write config loader with environment variable support"
+
+sprintctl item note --id 3 --type decision \
+  --summary "src/config.py: load from .env or environment. Required: DATABASE_URL, SECRET_KEY. Optional with defaults: PORT=8000, LOG_LEVEL=info." \
+  --actor setup
 
 # API track items
-sprintctl item create \
-  --sprint 2026-S01-forge-schema-overture \
+sprintctl item add \
+  --sprint-id $SPRINT_ID \
   --track api \
-  --title "Scaffold FastAPI app with health check endpoint" \
-  --priority high \
-  --description "src/app.py: FastAPI instance, GET /health returns {status: ok, version: <version>}. Wire config loader."
+  --title "Scaffold FastAPI app with health check endpoint"
 
-sprintctl item create \
-  --sprint 2026-S01-forge-schema-overture \
+sprintctl item note --id 4 --type decision \
+  --summary "src/app.py: FastAPI instance, GET /health returns {status: ok, version: <version>}. Wire config loader." \
+  --actor setup
+
+sprintctl item add \
+  --sprint-id $SPRINT_ID \
   --track api \
-  --title "Implement POST /auth/register and POST /auth/login" \
-  --priority medium \
-  --description "Register: create user, return token. Login: validate credentials, return token. Use JWT. Reference: core User and Session models."
+  --title "Implement POST /auth/register and POST /auth/login"
+
+sprintctl item note --id 5 --type decision \
+  --summary "Register: create user, return JWT. Login: validate credentials, return JWT. Reference User and Session models." \
+  --actor setup
 
 # Infra track items
-sprintctl item create \
-  --sprint 2026-S01-forge-schema-overture \
+sprintctl item add \
+  --sprint-id $SPRINT_ID \
   --track infra \
-  --title "Create Dockerfile for development" \
-  --priority medium \
-  --description "Python 3.12 slim base. Install deps, copy src. Dev: mount src as volume. Expose 8000."
+  --title "Create Dockerfile for development"
 
-sprintctl item create \
-  --sprint 2026-S01-forge-schema-overture \
+sprintctl item note --id 6 --type decision \
+  --summary "Python 3.12-slim base. Install deps, copy src. Dev: mount src as volume. Expose 8000." \
+  --actor setup
+
+sprintctl item add \
+  --sprint-id $SPRINT_ID \
   --track infra \
-  --title "Add docker-compose.yml with app + postgres services" \
-  --priority medium \
-  --description "Services: app (build from Dockerfile), db (postgres:16). App depends_on: db. Wire DATABASE_URL."
+  --title "Add docker-compose.yml with app + postgres services"
+
+sprintctl item note --id 7 --type decision \
+  --summary "Services: app (build from Dockerfile), db (postgres:16). app depends_on: db. Wire DATABASE_URL." \
+  --actor setup
 
 # Docs track items
-sprintctl item create \
-  --sprint 2026-S01-forge-schema-overture \
+sprintctl item add \
+  --sprint-id $SPRINT_ID \
   --track docs \
-  --title "Create AGENTS.md for my-app" \
-  --priority high \
-  --description "Cover: repo purpose, track taxonomy, claim policy, review policy (schema changes require review). Use sprintctl-bootstrap-template/AGENTS.md as template."
+  --title "Create AGENTS.md for my-app"
 
-sprintctl item create \
-  --sprint 2026-S01-forge-schema-overture \
+sprintctl item note --id 8 --type decision \
+  --summary "Cover: repo purpose, track taxonomy (core/api/infra/docs), claim policy, review policy (schema changes require review). Use sprintctl-bootstrap-template/AGENTS.md as template." \
+  --actor setup
+
+sprintctl item add \
+  --sprint-id $SPRINT_ID \
   --track docs \
-  --title "Update README with setup instructions and workflow pointer" \
-  --priority low \
-  --description "Add: quick start (docker-compose up), dev setup, pointer to AGENTS.md and docs/onboarding/."
+  --title "Update README with setup instructions and workflow pointer"
+
+sprintctl item note --id 9 --type decision \
+  --summary "Add: quick start (docker-compose up), dev setup, pointer to AGENTS.md and docs/onboarding/." \
+  --actor setup
 ```
 
 Verify items:
 
 ```bash
-sprintctl item list --sprint 2026-S01-forge-schema-overture
+sprintctl sprint show --detail
+sprintctl item list --sprint-id $SPRINT_ID
 ```
 
-### 8. Create AGENTS.md
+### 7. Create AGENTS.md
 
-Create `AGENTS.md` with content specific to this repo. Don't copy verbatim from the template — adapt it.
+Create `AGENTS.md` specific to this repo. Don't copy verbatim from the template — adapt it.
 
-Key sections to customize:
-- Repo classification and purpose (this is `my-app`, a Python web service)
-- Track taxonomy (core, api, infra, docs)
-- Review policy (schema changes require review; API changes require review if public-facing)
-- Sprint naming in use
+Key sections:
+- Repo classification and purpose
+- Track taxonomy (core/api/infra/docs for `my-app`)
+- Claim policy
+- Review policy (schema changes, API changes, AGENTS.md changes require review)
+- Sprint naming convention in use
+- Source-of-truth order
 
-### 9. Render the current sprint
+### 8. Render the current sprint
 
 ```bash
-sprintctl sprint render --sprint current --output docs/sprint/current.md
+sprintctl render > docs/sprint/current.md
 ```
 
-This creates `docs/sprint/current.md` showing the sprint state.
+This creates a plain-text snapshot of the sprint. Commit this file — it's the repo-visible sprint state.
 
-### 10. Verify everything works
+### 9. Verify everything works
 
 ```bash
 # Sprint state
-sprintctl sprint current
+sprintctl sprint show
 
-# Items
-sprintctl item list --sprint current
+# Items by track
+sprintctl item list --sprint-id $SPRINT_ID
 
-# Claims (should be empty)
-sprintctl claim list
+# Claims (should be empty at bootstrap)
+sprintctl claim list-sprint --sprint-id $SPRINT_ID
 
-# kctl
-kctl list
+# Maintenance check
+sprintctl maintain check --sprint-id $SPRINT_ID
 ```
 
 Expected state:
 - One active sprint with correct dates
-- 8-10 shaped items across 4 tracks
+- 8-10 pending items across 4 tracks
 - No stale claims
 - AGENTS.md exists
-- `docs/sprint/current.md` exists
+- `docs/sprint/current.md` exists and is committed
 
-### 11. Start working
+### 10. Start working
 
-Pick the highest priority item and claim it.
+Pick the highest priority item (or the logical first one) and claim it.
 
 ```bash
-sprintctl item list --sprint current --state open --priority high
+# Identify what to work on
+sprintctl item list --sprint-id $SPRINT_ID --status pending
 
+# Claim the first item
 sprintctl claim create \
-  --item CORE-001 \
-  --context "Creating src/models.py with SQLAlchemy models. Will define User, Session, Event as described. Using declarative base with type annotations."
+  --item-id 8 \
+  --actor claude-session-1 \
+  --runtime-session-id "${CODEX_THREAD_ID:-session-1}" \
+  --branch docs/agents-md \
+  --json
+# Save claim_id and claim_token from output
+
+# Move to active
+sprintctl item status --id 8 --status active \
+  --actor claude-session-1 --claim-id <claim-id> --claim-token <claim-token>
 ```
 
 Bootstrap complete.
@@ -251,26 +275,29 @@ Bootstrap complete.
 ## What you produced
 
 ```
-.sprintctl/config.yaml
-.kctl/config.yaml
-AGENTS.md
-docs/sprint/current.md
-docs/sprint/archive/         (empty, ready for archiving)
-docs/knowledge/              (empty, ready for promotion)
+.envrc                         (DB path scoping)
+.gitignore                     (ignores .sprintctl/, handoff files)
+AGENTS.md                      (repo workflow contract)
+docs/sprint/current.md         (rendered sprint snapshot, committed)
+docs/sprint/archive/           (ready for future archiving)
+docs/knowledge/                (ready for knowledge entries)
+docs/agent-guidance/           (ready for guidance docs)
 ```
 
-Plus 8-10 sprintctl items and 1 active sprint.
+Plus 8-10 pending sprintctl items and 1 active sprint.
 
 ---
 
 ## Common bootstrap mistakes
 
-**Creating too many tracks** — 3-5 is right. 8 tracks is over-engineering.
+**Creating too many tracks** — 3-5 is right. 8 tracks is over-engineering for one developer.
 
 **Creating vague items** — "Set up auth" is not a sprint item. "Implement POST /auth/register with JWT token return" is.
 
 **Not creating AGENTS.md** — Agents entering this repo cold will have no orientation. AGENTS.md is not optional.
 
-**Using placeholder names** — `2026-S01-sprint-one` is not a valid sprint name. Follow the naming convention.
+**Using placeholder sprint names** — `2026-S01-sprint-one` is not a valid sprint name. Follow the naming convention.
 
-**Forgetting to verify** — Always run the verification commands before considering bootstrap done.
+**Forgetting to render** — Run `sprintctl render > docs/sprint/current.md` and commit it. This is the repo-visible state.
+
+**Not verifying** — Run the verification commands before considering bootstrap done.
