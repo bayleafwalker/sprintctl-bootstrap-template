@@ -104,7 +104,7 @@ sprintctl claim create \
 
 ---
 
-## Step 6: Read handoff notes on items you're picking up
+## Step 6: Read handoff notes and doc refs on items you're picking up
 
 ```bash
 sprintctl item show --id <item-id>
@@ -114,6 +114,16 @@ Read the full event history. Don't skim it. The handoff events contain:
 - What was done
 - What to do next
 - Any blockers or context the previous agent needed to record
+
+Then check the `Refs:` section. A `[doc]` ref points at the plan/sprint doc
+that holds the item's real scope — read that doc before starting. If the item
+has no refs and no "no doc" note, the title may not be the whole scope; look
+for a matching doc in `docs/plans/` or `docs/sprints/` and attach it:
+
+```bash
+sprintctl item ref add --id <item-id> --type doc \
+  --url docs/plans/<doc>.md --label <doc_id>
+```
 
 ---
 

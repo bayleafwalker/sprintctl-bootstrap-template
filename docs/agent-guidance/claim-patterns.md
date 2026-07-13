@@ -45,6 +45,15 @@ sprintctl claim create \
 
 **Save the output.** The `claim_token` is returned once and not retrievable later (you can re-display it with `claim show` if you still hold it, but treat it as sensitive).
 
+**Read the item's doc refs before writing anything.** Claim output echoes the
+item's refs (a `Refs on item #N:` block in text, a `refs` array in `--json`).
+A `[doc]` ref points at the plan/sprint doc holding the item's real scope —
+per-task What/Where/How/Done-when. The item title is just the handle; the doc
+is the spec. If the claim output shows `Refs: (none …)` on implementation
+work, check the item's notes for an explicit "no doc" statement before
+assuming the title is the whole scope. When your work changes what the doc
+claims (e.g. a `Status:` field), update the doc in the same commit.
+
 Record your intent before starting:
 
 ```bash

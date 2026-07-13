@@ -85,6 +85,30 @@ sprintctl item note \
   --actor agent
 ```
 
+**Attach the governing doc.** An item is not shaped until it carries either a
+doc ref pointing at the plan/sprint doc that holds its real scope, or an
+explicit "no doc" note. Doc refs accept repo-relative paths; put the doc's
+`doc_id` (from its frontmatter) in the label:
+
+```bash
+# Item's scope lives in a doc — link it
+sprintctl item ref add \
+  --id <item-id> \
+  --type doc \
+  --url docs/plans/my-feature-plan.md \
+  --label my-feature-plan
+
+# Or: item is genuinely self-contained — say so explicitly
+sprintctl item note \
+  --id <item-id> \
+  --type decision \
+  --summary "No doc: scope fits entirely in the item title and shaping note." \
+  --actor agent
+```
+
+The ref is what puts the doc path in front of the claiming agent later —
+`claim start`, `next-work --explain`, and `session resume` all render it.
+
 If an item is too big, split it into focused sub-items and block the original:
 
 ```bash
@@ -114,6 +138,7 @@ Before considering an item shaped, check:
 - Is the acceptance criteria clear (what does "done" look like)?
 - Is it small enough to complete in a focused session?
 - Is the track assignment right?
+- Does it carry a doc ref to its governing doc, or an explicit "no doc" note?
 
 ```bash
 # Review the sprint shape overall
@@ -127,6 +152,7 @@ sprintctl item list --sprint-id <sprint-id> --status pending
 
 - One or more pending items in sprintctl with clear titles
 - Notes with rationale and "done" conditions
+- A doc ref on each item whose scope lives in a repo doc (or a "no doc" note)
 - Possibly blocked parent items if something was split
 
 ---
@@ -137,7 +163,8 @@ sprintctl item list --sprint-id <sprint-id> --status pending
 - Raw idea exists somewhere (head, notes, conversation)
 
 **Exit:**
-- Idea is captured as a pending sprintctl item with clear scope
+- Idea is captured as a pending sprintctl item with clear scope,
+  carrying a doc ref or an explicit "no doc" note
 - OR consciously rejected (add a note explaining why, mark done)
 - OR deferred to backlog sprint (pending, in backlog sprint)
 
