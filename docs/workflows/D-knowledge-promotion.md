@@ -1,5 +1,7 @@
 # Workflow D: Knowledge Promotion
 
+> **Template reference:** This bootstrap example is not canonical shared policy; consult `/projects/dev/agentops/templates/dispatch/` for current reusable workflow guidance.
+
 **Purpose:** Decisions, patterns, and lessons from sprint work become durable kctl entries that persist beyond the sprint.
 
 This workflow typically runs at the end of a sprint or during a knowledge-focused session. It can also run during a sprint for high-value candidates.

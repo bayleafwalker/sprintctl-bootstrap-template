@@ -1,5 +1,7 @@
 # Workflow B: Direct Implementation
 
+> **Template reference:** This bootstrap example is not canonical shared policy; consult `/projects/dev/agentops/templates/dispatch/` for current reusable workflow guidance.
+
 **Purpose:** An agent claims a scoped sprint item, does the work, and closes or hands off cleanly.
 
 This is the most common workflow. It applies to any implementation work within a defined track and scope that doesn't require architectural review.

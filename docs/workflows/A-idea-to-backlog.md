@@ -1,5 +1,7 @@
 # Workflow A: Idea to Backlog
 
+> **Template reference:** This bootstrap example is not canonical shared policy; consult `/projects/dev/agentops/templates/dispatch/` for current reusable workflow guidance.
+
 **Purpose:** Convert an unstructured idea, observation, or requirement into shaped, ready-to-execute sprint items.
 
 ---

@@ -1,5 +1,7 @@
 # Agent Entry Checklist
 
+> **Template reference:** This bootstrap example is not canonical shared policy; consult `/projects/dev/agentops/templates/dispatch/` for current reusable workflow guidance.
+
 What to do when entering this repo. Do these steps in order. Don't skip steps.
 
 ---

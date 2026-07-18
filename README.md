@@ -1,5 +1,7 @@
 # sprintctl-bootstrap-template
 
+> **Template status:** This repository is a bootstrap/reference example. Canonical shared agent workflow and dispatch guidance lives in `/projects/dev/agentops/templates/dispatch/`; adapt these local examples only for project-specific needs.
+
 A reference implementation and bootstrap template for the sprintctl + kctl workflow. This repo demonstrates "what does good look like when starting from nothing?" — a minimal, realistic starting point for a local-first, repo-native sprint workflow with agentic sessions.
 
 ## What this is

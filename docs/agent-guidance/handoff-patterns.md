@@ -1,5 +1,7 @@
 # Handoff Patterns
 
+> **Template reference:** This bootstrap example is not canonical shared policy; consult `/projects/dev/agentops/templates/dispatch/` for current reusable workflow guidance.
+
 Concrete patterns for handing off sprint items when stopping work. Use the pattern that matches your situation.
 
 ---

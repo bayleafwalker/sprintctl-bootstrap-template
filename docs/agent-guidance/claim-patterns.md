@@ -1,5 +1,7 @@
 # Claim Patterns
 
+> **Template reference:** This bootstrap example is not canonical shared policy; consult `/projects/dev/agentops/templates/dispatch/` for current reusable workflow guidance.
+
 When and how to use claims. Concrete examples for common situations.
 
 ---

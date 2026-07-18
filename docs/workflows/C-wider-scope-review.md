@@ -1,5 +1,7 @@
 # Workflow C: Wider-Scope Review
 
+> **Template reference:** This bootstrap example is not canonical shared policy; consult `/projects/dev/agentops/templates/dispatch/` for current reusable workflow guidance.
+
 **Purpose:** An architectural or risky change goes through implementation and then an explicit review step before being considered complete.
 
 This workflow applies when the change could affect multiple tracks, when the decision has lasting consequences, or when AGENTS.md or workflow contracts are being modified.

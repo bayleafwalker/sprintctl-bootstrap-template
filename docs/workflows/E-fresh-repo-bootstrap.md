@@ -1,5 +1,7 @@
 # Workflow E: Fresh Repo Bootstrap
 
+> **Template reference:** This bootstrap example is not canonical shared policy; consult `/projects/dev/agentops/templates/dispatch/` for current reusable workflow guidance.
+
 **Purpose:** A fresh repository gets its first sprint, tracks, render paths, and example items. This is a walkthrough of bootstrapping sprintctl + kctl from zero.
 
 ---
