@@ -230,7 +230,7 @@ sprintctl reservation release --id 5 --actor claude-session-1
 
 **Review:**
 ```bash
-sprintctl reservation reserve --item-id 11 --actor reviewer --role review --json
+sprintctl reservation reserve --item-id 11 --actor reviewer --role verification --json
 # → {"id": 6, "state": "active", ...}
 
 REV=$(sprintctl item show --id 11 --json | jq -r '.status_revision')

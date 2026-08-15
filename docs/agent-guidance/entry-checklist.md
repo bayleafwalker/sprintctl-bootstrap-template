@@ -114,7 +114,7 @@ sprintctl reservation reserve \
   --item-id <item-id> \
   --actor your-session-id \
   --session-id "${CODEX_THREAD_ID:-session-1}" \
-  --override --json
+  --interrupt-existing --json
 ```
 
 ---
