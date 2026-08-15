@@ -37,7 +37,7 @@ Run these commands and read the output:
   sprintctl sprint list --include-backlog
   sprintctl item list --sprint-id <current-sprint-id>
   sprintctl item list --sprint-id <backlog-sprint-id>
-  sprintctl claim list-sprint --sprint-id <current-sprint-id>
+  sprintctl reservation list --all --json
 
 Also read:
   AGENTS.md
@@ -48,7 +48,7 @@ Also read:
 Answer these questions (you don't need to write them out, just know the answers):
 - What sprint is active? How much time is left?
 - How many items are pending, active, done, blocked?
-- Are there claims? Are they fresh or stale (run: sprintctl maintain check)?
+- Are there reservations? Are they fresh or stale (run: sprintctl maintain check)?
 - Is the sprint on track or has scope drifted?
 - Are there backlog items that should be in the current sprint?
 - Are there any pattern-noted or lesson-learned events worth promoting?
@@ -88,7 +88,7 @@ For reshaping:
 - Read all items: sprintctl item list --sprint-id <id>
 - For each: is it specific enough? Is it still relevant? Is it the right priority?
 - Add notes to clarify scope: sprintctl item note --id <id> --type decision --summary "<refined scope>"
-- Block stale items: sprintctl item status --id <id> --status blocked --actor setup --claim-id ... (if claimed) or just note the reason
+- Block stale items: sprintctl item status --id <id> --status blocked --actor setup --expected-revision <revision> or just note the reason
 
 For shaping backlog items:
 - List pending items: sprintctl item list --sprint-id <backlog-id>

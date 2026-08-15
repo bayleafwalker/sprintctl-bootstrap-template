@@ -37,7 +37,7 @@ Capture immediately. Don't try to shape now if you don't have full context.
 # Find the active sprint ID
 sprintctl sprint show --json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['id'])"
 
-# Quick capture as pending item (pending = not yet started, ready to shape/claim)
+# Quick capture as pending item (pending = not yet started, ready to shape/reserve)
 sprintctl item add \
   --sprint-id <sprint-id> \
   --track docs \
@@ -108,8 +108,8 @@ sprintctl item note \
   --actor agent
 ```
 
-The ref is what puts the doc path in front of the claiming agent later —
-`claim start`, `next-work --explain`, and `session resume` all render it.
+The ref is what puts the doc path in front of the working session later —
+`reservation reserve`, `next-work --explain`, and `session resume` all render it.
 
 If an item is too big, split it into focused sub-items and block the original:
 
@@ -172,9 +172,9 @@ sprintctl item list --sprint-id <sprint-id> --status pending
 
 ---
 
-## Where claims/handoffs apply
+## Where reservations/handoffs apply
 
-**Claims:** Don't claim items during shaping. Shaping is not implementation work. Claim when you're about to start implementing.
+**Reservations:** Don't reserve items during shaping. Shaping is not implementation work. Reserve when you're about to start implementing.
 
 **Handoffs:** If you're mid-shaping and need to stop, leave a note on unshaped items with enough context to resume.
 

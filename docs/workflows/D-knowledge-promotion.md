@@ -209,23 +209,24 @@ sprintctl item note \
 
 ---
 
-## Where claims/handoffs apply
+## Where reservations/handoffs apply
 
-Knowledge promotion doesn't usually require a claim unless you're doing a multi-session knowledge sprint.
+Knowledge promotion doesn't usually require a reservation unless you're doing a multi-session knowledge sprint.
 
 If handing off mid-promotion:
 
 ```bash
 sprintctl item note \
   --id <item-id> \
-  --type claim-handoff \
+  --type update \
   --summary "Triaged 8 candidates: 5 to promote, 3 rejected. Drafted 3 entries." \
-  --detail "Next: Draft remaining 2 entries (slugs: claim-context-norms, track-sizing-heuristic). Then review and publish all 5. Files: docs/knowledge/ — 3 files created, 2 more needed." \
+  --detail "Next: Draft remaining 2 entries (slugs: reservation-context-norms, track-sizing-heuristic). Then review and publish all 5. Files: docs/knowledge/ — 3 files created, 2 more needed." \
   --actor agent
 
-sprintctl claim handoff \
-  --id <claim-id> --claim-token <claim-token> \
-  --actor next-session --mode rotate
+sprintctl reservation reassign \
+  --id <reservation-id> \
+  --actor next-session \
+  --session-id <next-session-id>
 ```
 
 ---

@@ -107,33 +107,34 @@ Stop when:
 
 ## Stage 3: Direct Claimed Work
 
-**What this is:** An agent (or the developer) picks up a shaped item, claims it, does the work, and closes or hands off.
+**What this is:** An agent (or the developer) picks up a shaped item, reserves it, does the work, and closes or hands off.
 
 ### Entry condition
-- A shaped, pending, unclaimed item exists in the current sprint
+- A shaped, pending, unreserved item exists in the current sprint
 - The agent has read AGENTS.md and checked current sprint state
 - The agent understands the track and scope of the item
 
 ### Typical artifacts
-- Active claim with agent identity
+- Active reservation naming the working session
 - Code, docs, config, or other work product
 - Completion note on the item, OR
-- Handoff events and transferred claim
+- Handoff events and reassigned reservation
 
 ### Expected sprintctl actions
 
 ```bash
-# Claim the item before starting (save claim_id and claim_token from output)
-sprintctl claim create \
+# Reserve the item before starting (save the returned reservation id)
+sprintctl reservation reserve \
   --item-id <item-id> \
   --actor <session-id> \
-  --runtime-session-id "${CODEX_THREAD_ID:-manual-session}" \
-  --branch feat/your-work \
+  --session-id "${CODEX_THREAD_ID:-session-1}" \
   --json
 
 # Move item to active (requires token proof)
+REV=$(sprintctl item show --id <item-id> --json | jq -r '.status_revision')
 sprintctl item status --id <item-id> --status active \
-  --actor <session-id> --claim-id <claim-id> --claim-token <claim-token>
+  --actor <session-id> \
+  --expected-revision "$REV"
 
 # Record intent and non-obvious decisions during work
 sprintctl item note --id <item-id> --type decision \
@@ -144,24 +145,30 @@ sprintctl item note --id <item-id> --type decision \
 sprintctl item note --id <item-id> --type decision \
   --summary "Done: <brief summary of what was produced>" \
   --actor <session-id>
+REV=$(sprintctl item show --id <item-id> --json | jq -r '.status_revision')
 sprintctl item status --id <item-id> --status done \
-  --actor <session-id> --claim-id <claim-id> --claim-token <claim-token>
-sprintctl claim release --id <claim-id> --claim-token <claim-token>
+  --actor <session-id> \
+  --expected-revision "$REV"
+sprintctl reservation release --id <reservation-id>
 
 # If handing off:
-sprintctl item note --id <item-id> --type claim-handoff \
+sprintctl item note --id <item-id> --type update \
   --summary "Status: <what's done>. Next: <what to do next>." \
   --detail "<file locations, approach notes, blockers if any>" \
   --actor <session-id>
-sprintctl claim handoff --id <claim-id> --claim-token <claim-token> \
-  --actor <next-session-id> --mode rotate
+sprintctl reservation reassign \
+  --id <reservation-id> \
+  --actor <next-session-id> \
+  --session-id <next-session-id>
 
 # If blocked:
 sprintctl item note --id <item-id> --type decision \
   --summary "Blocked: <reason, what's needed to unblock>" --actor <session-id>
+REV=$(sprintctl item show --id <item-id> --json | jq -r '.status_revision')
 sprintctl item status --id <item-id> --status blocked \
-  --actor <session-id> --claim-id <claim-id> --claim-token <claim-token>
-sprintctl claim release --id <claim-id> --claim-token <claim-token>
+  --actor <session-id> \
+  --expected-revision "$REV"
+sprintctl reservation release --id <reservation-id>
 ```
 
 ### When to stop / hand off
@@ -172,7 +179,7 @@ Stop and hand off when:
 
 ### Success criteria
 - Item is done with a completion note, OR
-- Item has a handoff note and claim transferred to the next session, OR
+- Item has a handoff note and the reservation reassigned to the next session, OR
 - Item is blocked with a specific, actionable reason
 
 ---
@@ -197,11 +204,13 @@ Stop and hand off when:
 sprintctl item show --id <item-id>
 
 # Claim for review
-sprintctl claim create --item-id <item-id> --actor reviewer --type review --json
+sprintctl reservation reserve --item-id <item-id> --actor reviewer --role review --json
 
 # Move to active for review work
+REV=$(sprintctl item show --id <item-id> --json | jq -r '.status_revision')
 sprintctl item status --id <item-id> --status active \
-  --actor reviewer --claim-id <review-claim-id> --claim-token <review-claim-token>
+  --actor reviewer \
+  --expected-revision "$REV"
 
 # Record review outcome
 sprintctl item note --id <item-id> --type decision \
@@ -211,14 +220,18 @@ sprintctl item note --id <item-id> --type decision \
   --summary "Review: Changes needed. <specific changes required>" --actor reviewer
 
 # If approved: close
+REV=$(sprintctl item show --id <item-id> --json | jq -r '.status_revision')
 sprintctl item status --id <item-id> --status done \
-  --actor reviewer --claim-id <review-claim-id> --claim-token <review-claim-token>
-sprintctl claim release --id <review-claim-id> --claim-token <review-claim-token>
+  --actor reviewer \
+  --expected-revision "$REV"
+sprintctl reservation release --id <review-reservation-id>
 
 # If changes needed: return to pending
+REV=$(sprintctl item show --id <item-id> --json | jq -r '.status_revision')
 sprintctl item status --id <item-id> --status pending \
-  --actor reviewer --claim-id <review-claim-id> --claim-token <review-claim-token>
-sprintctl claim release --id <review-claim-id> --claim-token <review-claim-token>
+  --actor reviewer \
+  --expected-revision "$REV"
+sprintctl reservation release --id <review-reservation-id>
 ```
 
 ### When review is required vs. optional

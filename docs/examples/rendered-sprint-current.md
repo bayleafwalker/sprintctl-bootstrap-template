@@ -13,7 +13,7 @@
 ### WF-001 — Define track taxonomy and write AGENTS.md skeleton
 **State:** done
 
-> Done. Created AGENTS.md with track taxonomy (workflow, docs, knowledge, tooling), claim policy, review policy, artifact paths, and sprint naming reference. 118 lines.
+> Done. Created AGENTS.md with track taxonomy (workflow, docs, knowledge, tooling), reservation policy, review policy, artifact paths, and sprint naming reference. 118 lines.
 
 ---
 
@@ -34,7 +34,7 @@
 
 ### WF-004 — Write docs/knowledge-workflow.md
 **State:** active
-**Claimed by:** agent-session-2026-03-30-b (claim_id: 2)
+**Reserved by:** agent-session-2026-03-30-b (reservation 2, execute)
 **Claim context (via branch):** docs/knowledge-workflow
 
 > Last event: 2026-03-30 14:22 — decision: "Writing knowledge-workflow.md. Covering: promotion qualifications, non-qualifications, candidate→reviewed→published path, example candidate, example published entry."
@@ -50,10 +50,10 @@
 
 ### DOC-001 — Write docs/workflows/ series (A through E)
 **State:** active
-**Claimed by:** agent-session-2026-03-30-a (claim_id: 1)
+**Reserved by:** agent-session-2026-03-30-a (reservation 1, execute)
 **Claim context (via branch):** docs/workflows-series
 
-> Last event: 2026-03-30 13:45 — claim-handoff:
+> Last event: 2026-03-30 13:45 — reservation reassigned:
 > "Status: A and B complete. C (wider-scope-review) drafted but needs review section expanded — the 'when review is required' table is thin.
 > Next: Expand C review section, then write D and E.
 > Files: docs/workflows/A-idea-to-backlog.md (done), B-direct-implementation.md (done), C-wider-scope-review.md (draft, needs expansion).
@@ -61,7 +61,7 @@
 
 ---
 
-### DOC-002 — Write docs/agent-guidance/ (entry-checklist, handoff-patterns, claim-patterns)
+### DOC-002 — Write docs/agent-guidance/ (entry-checklist, handoff-patterns, reservation-patterns)
 **State:** pending
 
 ---
@@ -94,19 +94,19 @@
 ## Sprint summary
 
 **Velocity so far:** 3 items done in day 1 (high-priority workflow foundation items)
-**In-flight:** 2 items claimed (WF-004, DOC-001)
+**In-flight:** 2 items reserved (WF-004, DOC-001)
 **Upcoming:** DOC-002, DOC-003, DOC-004, WF-005
 
-**Health:** On track. Foundation items completed. Documentation work in progress with active claims and a clean handoff note on DOC-001. One item deliberately blocked pending validation (KN-001).
+**Health:** On track. Foundation items completed. Documentation work in progress with active reservations and a clean handoff note on DOC-001. One item deliberately blocked pending validation (KN-001).
 
 **pattern-noted candidates this sprint:**
 - `sprint-naming-anchor-first` (on WF-003, blocked until end-of-sprint)
 
 **Next recommended action for an incoming agent:**
-- Check claims on WF-004 and DOC-001 — are they still active or stale?
+- Check reservations on WF-004 and DOC-001 — are they still active or stale?
   (`sprintctl maintain check --sprint-id 1`)
-- If DOC-001 claim is stale, pick up from the handoff note (continue from C in workflows series)
-- Otherwise, claim DOC-002 (next highest priority pending item)
+- If the DOC-001 reservation is stale, pick up from the handoff note (continue from C in workflows series)
+- Otherwise, reserve DOC-002 (next highest priority pending item)
 
 ---
 

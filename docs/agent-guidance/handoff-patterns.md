@@ -32,15 +32,16 @@ Next item suggestion: <optional — what logically follows>
 ```bash
 # Record completion note
 sprintctl item note --id 2 --type decision \
-  --summary "Done. Produced: entry-checklist.md (8 steps, ~120 lines), handoff-patterns.md (4 patterns), claim-patterns.md (3 scenarios, ~90 lines). Note: entry-checklist references claim-patterns.md in step 8 — if claim-patterns changes substantially, update that reference." \
+  --summary "Done. Produced: entry-checklist.md (8 steps, ~120 lines), handoff-patterns.md (4 patterns), reservation-patterns.md (3 scenarios, ~90 lines). Note: entry-checklist references reservation-patterns.md in step 8 — if reservation-patterns changes substantially, update that reference." \
   --actor claude-session-1
 
 # Close the item
+REV=$(sprintctl item show --id 2 --json | jq -r '.status_revision')
 sprintctl item status --id 2 --status done \
-  --actor claude-session-1 --claim-id 1 --claim-token tok_abc
+  --actor claude-session-1 --expected-revision "$REV"
 
-# Release claim
-sprintctl claim release --id 1 --claim-token tok_abc --actor claude-session-1
+# Release the reservation
+sprintctl reservation release --id 1 --actor claude-session-1
 ```
 
 ---
@@ -73,11 +74,12 @@ sprintctl item note --id 5 --type decision \
   --actor claude-session-1
 
 # Block the item
+REV=$(sprintctl item show --id 5 --json | jq -r '.status_revision')
 sprintctl item status --id 5 --status blocked \
-  --actor claude-session-1 --claim-id 3 --claim-token tok_ghi
+  --actor claude-session-1 --expected-revision "$REV"
 
-# Release claim — blocked items should not hold claims
-sprintctl claim release --id 3 --claim-token tok_ghi --actor claude-session-1
+# Release the reservation — blocked items should not hold them
+sprintctl reservation release --id 3 --actor claude-session-1
 ```
 
 ---
@@ -103,14 +105,14 @@ Blockers: none (or describe if any)
 **Example:**
 ```bash
 # Record handoff note on the item
-sprintctl item note --id 1 --type claim-handoff \
+sprintctl item note --id 1 --type update \
   --summary "In progress: 3 of 5 workflow docs complete." \
   --detail "Done: A-idea-to-backlog.md, B-direct-implementation.md, C-wider-scope-review.md (all complete). Next: Write D-knowledge-promotion.md (see docs/sprint-workflow.md stage 5 for content outline), then E-fresh-repo-bootstrap.md (walkthrough style, not reference). Files: docs/workflows/ — A, B, C done; D and E don't exist yet. Blockers: none." \
   --actor claude-session-1
 
-# Transfer claim to next session (mints new token)
-sprintctl claim handoff \
-  --id 1 --claim-token tok_abc \
+# Transfer the reservation to the next session (nothing is minted)
+sprintctl reservation reassign \
+  --id 1 \
   --actor claude-session-2 --mode rotate \
   --note "3/5 workflow docs done. D and E remaining."
 ```
@@ -124,7 +126,7 @@ Use when: Work is blocked specifically because a decision needs to be made that 
 **When to use:**
 - An architectural choice came up that the agent shouldn't make unilaterally
 - Conflicting requirements were discovered and someone needs to choose
-- A policy question arose (e.g., "should claims be required for doc edits?")
+- A policy question arose (e.g., "should reservations be required for doc edits?")
 - A risk was discovered that needs human acknowledgment
 
 **Template:**
@@ -140,17 +142,18 @@ Work state: <what's done, what's waiting>
 **Example:**
 ```bash
 # Record the decision-needed handoff
-sprintctl item note --id 8 --type claim-handoff \
+sprintctl item note --id 8 --type update \
   --summary "Paused — decision needed: what counts as a 'schema change' for review policy?" \
   --detail "Context: writing AGENTS.md review policy — 'schema changes require review' but no formal schema exists. Decision: does 'schema change' mean (a) .sprintctl config changes only, (b) track taxonomy changes in AGENTS.md only, or (c) both? Options: (a) narrow, misses AGENTS.md track changes; (b) broader, catches track changes; (c) broadest, most consistent. Impact: defines which items need Workflow C vs B. Work state: AGENTS.md review policy written up to the schema-change clause. Can continue once decision is made." \
   --actor claude-session-1
 
 # Block the item pending the decision
+REV=$(sprintctl item show --id 8 --json | jq -r '.status_revision')
 sprintctl item status --id 8 --status blocked \
-  --actor claude-session-1 --claim-id 5 --claim-token tok_xyz
+  --actor claude-session-1 --expected-revision "$REV"
 
-# Release claim
-sprintctl claim release --id 5 --claim-token tok_xyz --actor claude-session-1
+# Release the reservation
+sprintctl reservation release --id 5 --actor claude-session-1
 ```
 
 After a decision-needed block, the human or a future session should:
@@ -174,7 +177,7 @@ sprintctl item status --id 8 --status pending --actor human
 **The ghost handoff:**
 ```bash
 # Bad — tells the next agent nothing
-sprintctl item note --id 1 --type claim-handoff --summary "Working on this" --actor session
+sprintctl item note --id 1 --type update --summary "Working on this" --actor session
 ```
 
 **The incomplete block:**
@@ -183,13 +186,13 @@ sprintctl item note --id 1 --type claim-handoff --summary "Working on this" --ac
 sprintctl item note --id 5 --type decision --summary "Blocked on kctl output format" --actor session
 ```
 
-**The claim-holding partial:**
+**The reservation-holding partial:**
 ```bash
-# Bad — left a handoff note but didn't transfer or release the claim
-sprintctl item note --id 1 --type claim-handoff --summary "In progress, 3 of 5 done" --actor session
-# (no claim handoff or release — claim still held, blocking others)
+# Bad — left a handoff note but didn't transfer or release the reservation
+sprintctl item note --id 1 --type update --summary "In progress, 3 of 5 done" --actor session
+# (no reassign or release — the reservation still names the old session)
 ```
-Always use `claim handoff` (to pass to next session) or `claim release` (to free the item) when leaving a partial. Never leave a claim held on an item you're no longer actively working.
+Always use `reservation reassign` (to pass to the next session) or `reservation release` (to free the item) when leaving a partial. Never leave a reservation naming you on an item you're no longer actively working.
 
 **The wall of text:**
 Keep handoffs structured and scannable. The next agent needs to start working within 2 minutes of reading it.

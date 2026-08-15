@@ -11,7 +11,7 @@ This workflow applies when the change could affect multiple tracks, when the dec
 ## Normal path
 
 ```
-pending item (review-required) → claim → implement → block for review → review → done
+pending item (review-required) → reserve → implement → block for review → review → done
 ```
 
 ---
@@ -24,7 +24,7 @@ pending item (review-required) → claim → implement → block for review → 
 | Changes to AGENTS.md | Yes |
 | Changes to sprint naming conventions | Yes |
 | New track creation mid-sprint | Yes |
-| Changes to claim or review policy | Yes |
+| Changes to reservation or review policy | Yes |
 | Cross-track architectural decisions | Yes |
 | New external dependencies | Yes |
 | Single-track doc additions | No |
@@ -39,30 +39,31 @@ When in doubt: if a future agent reading AGENTS.md would be misled without knowi
 
 - Item has a `review-required` note, OR
 - You recognize while working that the change scope requires review
-- The item is claimed or you are about to claim it
+- The item is reserved or you are about to reserve it
 
 ---
 
 ## Step-by-step
 
-### Step 1: Orient and claim
+### Step 1: Orient and reserve
 
 ```bash
 # Check the item for existing notes or context
 sprintctl item show --id <item-id>
 
 # Claim with intent to flag for review
-sprintctl claim create \
+sprintctl reservation reserve \
   --item-id <item-id> \
   --actor claude-session-1 \
-  --runtime-session-id "${CODEX_THREAD_ID:-session-1}" \
-  --branch feat/track-taxonomy-update \
+  --session-id "${CODEX_THREAD_ID:-session-1}" \
   --json
-# → claim_id, claim_token
+# → reservation id
 
 # Move to active
+REV=$(sprintctl item show --id <item-id> --json | jq -r '.status_revision')
 sprintctl item status --id <item-id> --status active \
-  --actor claude-session-1 --claim-id <claim-id> --claim-token <claim-token>
+  --actor claude-session-1 \
+  --expected-revision "$REV"
 
 # Record intent (note the review plan)
 sprintctl item note \
@@ -93,18 +94,21 @@ When implementation is complete, block the item pending review and leave a detai
 # Record the review handoff
 sprintctl item note \
   --id <item-id> \
-  --type claim-handoff \
+  --type update \
   --summary "Implementation complete. Blocked pending review before close." \
   --detail "What changed: AGENTS.md (api+core → backend track), 12 items re-assigned, docs/sprint-workflow.md track references updated. Why: api/core split was artificial, most items touched both. Review focus: does track consolidation make sense? Are there cases where the split was useful? Any other AGENTS.md changes needed? Risks: sprint archive references old track names — may need migration note." \
   --actor claude-session-1
 
 # Block the item to prevent premature closure
+REV=$(sprintctl item show --id <item-id> --json | jq -r '.status_revision')
 sprintctl item status --id <item-id> --status blocked \
-  --actor claude-session-1 --claim-id <claim-id> --claim-token <claim-token>
+  --actor claude-session-1 \
+  --expected-revision "$REV"
 
-# Release claim — reviewer will claim it
-sprintctl claim release \
-  --id <claim-id> --claim-token <claim-token> --actor claude-session-1
+# Release the reservation — the reviewer takes their own
+sprintctl reservation release \
+  --id <reservation-id> \
+  --actor claude-session-1
 ```
 
 ### Step 4: Review
@@ -120,16 +124,18 @@ git diff HEAD~1 --stat
 git diff HEAD~1
 
 # Claim for review
-sprintctl claim create \
+sprintctl reservation reserve \
   --item-id <item-id> \
   --actor reviewer \
-  --type review \
+  --session-id "${CODEX_THREAD_ID:-session-1}" \
   --json
-# → new claim_id, claim_token
+# → same reservation id, now naming the incoming session
 
 # Move back to active for review work
+REV=$(sprintctl item show --id <item-id> --json | jq -r '.status_revision')
 sprintctl item status --id <item-id> --status active \
-  --actor reviewer --claim-id <review-claim-id> --claim-token <review-claim-token>
+  --actor reviewer \
+  --expected-revision "$REV"
 ```
 
 **If approved:**
@@ -141,11 +147,14 @@ sprintctl item note \
   --summary "Review: Approved. Track consolidation makes sense. Added migration note to AGENTS.md track taxonomy section for archive references." \
   --actor reviewer
 
+REV=$(sprintctl item show --id <item-id> --json | jq -r '.status_revision')
 sprintctl item status --id <item-id> --status done \
-  --actor reviewer --claim-id <review-claim-id> --claim-token <review-claim-token>
+  --actor reviewer \
+  --expected-revision "$REV"
 
-sprintctl claim release \
-  --id <review-claim-id> --claim-token <review-claim-token> --actor reviewer
+sprintctl reservation release \
+  --id <review-reservation-id> \
+  --actor reviewer
 ```
 
 **If changes needed:**
@@ -158,11 +167,14 @@ sprintctl item note \
   --actor reviewer
 
 # Return item to pending for rework
+REV=$(sprintctl item show --id <item-id> --json | jq -r '.status_revision')
 sprintctl item status --id <item-id> --status pending \
-  --actor reviewer --claim-id <review-claim-id> --claim-token <review-claim-token>
+  --actor reviewer \
+  --expected-revision "$REV"
 
-sprintctl claim release \
-  --id <review-claim-id> --claim-token <review-claim-token> --actor reviewer
+sprintctl reservation release \
+  --id <review-reservation-id> \
+  --actor reviewer
 ```
 
 ---
@@ -178,57 +190,64 @@ sprintctl claim release \
 
 ## Example: AGENTS.md change
 
-**Scenario:** An agent wants to add a read-only exploration clause to the claim policy in AGENTS.md.
+**Scenario:** An agent wants to add a read-only exploration clause to the reservation policy in AGENTS.md.
 
 **Claim and intent:**
 ```bash
-sprintctl claim create \
+sprintctl reservation reserve \
   --item-id 11 \
   --actor claude-session-1 \
-  --runtime-session-id "${CODEX_THREAD_ID:-session-1}" \
-  --branch docs/claim-policy-update \
+  --session-id "${CODEX_THREAD_ID:-session-1}" \
   --json
-# → claim_id: 5, claim_token: tok_xyz789
+# → {"id": 5, "state": "active", ...}
 
+REV=$(sprintctl item show --id 11 --json | jq -r '.status_revision')
 sprintctl item status --id 11 --status active \
-  --actor claude-session-1 --claim-id 5 --claim-token tok_xyz789
+  --actor claude-session-1 \
+  --expected-revision "$REV"
 
 sprintctl item note --id 11 --type decision \
-  --summary "Adding read-only exploration clause to claim policy in AGENTS.md. Will flag for review — AGENTS.md changes require review per policy." \
+  --summary "Adding read-only exploration clause to reservation policy in AGENTS.md. Will flag for review — AGENTS.md changes require review per policy." \
   --actor claude-session-1
 ```
 
-**Work:** Update AGENTS.md claim policy section to add "Exploration (read-only, no writes) does not require a claim."
+**Work:** Update AGENTS.md reservation policy section to add "Exploration (read-only, no writes) does not require a reservation."
 
 **Flag for review:**
 ```bash
-sprintctl item note --id 11 --type claim-handoff \
+sprintctl item note --id 11 --type update \
   --summary "Implementation complete. Flagged for review before close." \
-  --detail "Added one bullet to claim policy: optional for read-only exploration (no file writes, no sprintctl mutations). File: AGENTS.md claim policy section ~line 45. Rationale: agents were creating claims for orientation reads, creating noise. Review focus: confirm wording doesn't create an unintended loophole." \
+  --detail "Added one bullet to reservation policy: optional for read-only exploration (no file writes, no sprintctl mutations). File: AGENTS.md reservation policy section ~line 45. Rationale: agents were reserving for orientation reads, creating noise. Review focus: confirm wording doesn't create an unintended loophole." \
   --actor claude-session-1
 
+REV=$(sprintctl item show --id 11 --json | jq -r '.status_revision')
 sprintctl item status --id 11 --status blocked \
-  --actor claude-session-1 --claim-id 5 --claim-token tok_xyz789
+  --actor claude-session-1 \
+  --expected-revision "$REV"
 
-sprintctl claim release --id 5 --claim-token tok_xyz789 --actor claude-session-1
+sprintctl reservation release --id 5 --actor claude-session-1
 ```
 
 **Review:**
 ```bash
-sprintctl claim create --item-id 11 --actor reviewer --type review --json
-# → claim_id: 6, claim_token: tok_rev001
+sprintctl reservation reserve --item-id 11 --actor reviewer --role review --json
+# → {"id": 6, "state": "active", ...}
 
+REV=$(sprintctl item show --id 11 --json | jq -r '.status_revision')
 sprintctl item status --id 11 --status active \
-  --actor reviewer --claim-id 6 --claim-token tok_rev001
+  --actor reviewer \
+  --expected-revision "$REV"
 
 sprintctl item note --id 11 --type decision \
   --summary "Review: Approved with minor wording change. Changed 'read-only exploration' to 'read-only orientation (no file writes, no sprintctl mutations)' for precision. Applied in place." \
   --actor reviewer
 
+REV=$(sprintctl item show --id 11 --json | jq -r '.status_revision')
 sprintctl item status --id 11 --status done \
-  --actor reviewer --claim-id 6 --claim-token tok_rev001
+  --actor reviewer \
+  --expected-revision "$REV"
 
-sprintctl claim release --id 6 --claim-token tok_rev001 --actor reviewer
+sprintctl reservation release --id 6 --actor reviewer
 ```
 
 ---

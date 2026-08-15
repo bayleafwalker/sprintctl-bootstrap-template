@@ -185,7 +185,7 @@ sprintctl item add \
   --title "Create AGENTS.md for my-app"
 
 sprintctl item note --id 8 --type decision \
-  --summary "Cover: repo purpose, track taxonomy (core/api/infra/docs), claim policy, review policy (schema changes require review). Use sprintctl-bootstrap-template/AGENTS.md as template." \
+  --summary "Cover: repo purpose, track taxonomy (core/api/infra/docs), reservation policy, review policy (schema changes require review). Use sprintctl-bootstrap-template/AGENTS.md as template." \
   --actor setup
 
 sprintctl item add \
@@ -235,7 +235,7 @@ sprintctl sprint show
 sprintctl item list --sprint-id $SPRINT_ID
 
 # Claims (should be empty at bootstrap)
-sprintctl claim list-sprint --sprint-id $SPRINT_ID
+sprintctl reservation list --all --json
 
 # Maintenance check
 sprintctl maintain check --sprint-id $SPRINT_ID
@@ -244,30 +244,31 @@ sprintctl maintain check --sprint-id $SPRINT_ID
 Expected state:
 - One active sprint with correct dates
 - 8-10 pending items across 4 tracks
-- No stale claims
+- No stale reservations
 - AGENTS.md exists
 - `docs/sprint/current.md` exists and is committed
 
 ### 10. Start working
 
-Pick the highest priority item (or the logical first one) and claim it.
+Pick the highest priority item (or the logical first one) and reserve it.
 
 ```bash
 # Identify what to work on
 sprintctl item list --sprint-id $SPRINT_ID --status pending
 
 # Claim the first item
-sprintctl claim create \
+sprintctl reservation reserve \
   --item-id 8 \
   --actor claude-session-1 \
-  --runtime-session-id "${CODEX_THREAD_ID:-session-1}" \
-  --branch docs/agents-md \
+  --session-id "${CODEX_THREAD_ID:-session-1}" \
   --json
-# Save claim_id and claim_token from output
+# Save the returned reservation id
 
 # Move to active
+REV=$(sprintctl item show --id 8 --json | jq -r '.status_revision')
 sprintctl item status --id 8 --status active \
-  --actor claude-session-1 --claim-id <claim-id> --claim-token <claim-token>
+  --actor claude-session-1 \
+  --expected-revision "$REV"
 ```
 
 Bootstrap complete.

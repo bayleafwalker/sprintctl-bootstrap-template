@@ -10,7 +10,7 @@ This is not a documentation cathedral. It is a concrete working example of:
 
 - how to structure a repo for sprintctl + kctl
 - how to name sprints, define tracks, and shape backlog items
-- how agents enter, claim work, and hand off
+- how agents enter, reserve work, and hand off
 - how knowledge gets promoted from sprint events to durable entries
 - the full loop: idea → backlog → work → review (optional) → knowledge
 
@@ -50,7 +50,7 @@ cd my-project
 │   ├── knowledge-workflow.md          # How knowledge flows from sprint to kctl
 │   ├── workflows/
 │   │   ├── A-idea-to-backlog.md       # Concept → shaped sprint items
-│   │   ├── B-direct-implementation.md # Agent claims, works, hands off
+│   │   ├── B-direct-implementation.md # Agent reserves, works, hands off
 │   │   ├── C-wider-scope-review.md    # Architectural/risky change + review
 │   │   ├── D-knowledge-promotion.md   # Sprint events → durable knowledge
 │   │   └── E-fresh-repo-bootstrap.md  # First sprint on a fresh repo
@@ -62,7 +62,7 @@ cd my-project
 │   ├── agent-guidance/
 │   │   ├── entry-checklist.md         # What to do when entering this repo
 │   │   ├── handoff-patterns.md        # Realistic handoff note examples
-│   │   └── claim-patterns.md          # When and how to use claims
+│   │   └── reservation-patterns.md    # When and how to use reservations
 │   ├── artifacts/
 │   │   └── paths.md                   # Where generated artifacts live and why
 │   ├── sprint/
@@ -73,11 +73,11 @@ cd my-project
 
 ## Operating model
 
-- **sprintctl** — live execution control plane: sprint, track, item, claim management
+- **sprintctl** — live execution control plane: sprint, track, item, reservation management
 - **kctl** — reviewed knowledge layer: durable decisions, patterns, accepted risks
 - **local-first** — everything lives in the repo, no external project trackers
 - **one developer + sparse agent sessions** — no team workflow overhead
-- **agents are first-class participants** — claims and handoffs are how continuity works
+- **agents are first-class participants** — reservations and handoffs are how continuity works
 
 ## Key docs
 

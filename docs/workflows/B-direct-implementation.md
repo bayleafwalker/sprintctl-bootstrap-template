@@ -2,7 +2,7 @@
 
 > **Template reference:** This bootstrap example is not canonical shared policy; consult `/projects/dev/agentops/templates/dispatch/` for current reusable workflow guidance.
 
-**Purpose:** An agent claims a scoped sprint item, does the work, and closes or hands off cleanly.
+**Purpose:** An agent reserves a scoped sprint item, does the work, and closes or hands off cleanly.
 
 This is the most common workflow. It applies to any implementation work within a defined track and scope that doesn't require architectural review.
 
@@ -11,14 +11,14 @@ This is the most common workflow. It applies to any implementation work within a
 ## Normal path
 
 ```
-pending item → claim → work → done (or handoff)
+pending item → reserve → work → done (or handoff)
 ```
 
 ---
 
 ## Entry condition
 
-- A shaped, pending, unclaimed item exists in the current sprint
+- A shaped, pending, unreserved item exists in the current sprint
 - The item is within a track the agent can work in
 - No blocker is listed on the item
 - You have read AGENTS.md and understand the track taxonomy
@@ -33,7 +33,7 @@ pending item → claim → work → done (or handoff)
 # Check current sprint state
 sprintctl sprint show --detail
 
-# List pending items (unclaimed items are pending with no active claim)
+# List pending items (unreserved items are pending with no active reservation)
 sprintctl item list --sprint-id <sprint-id> --status pending
 
 # Check for stale active items (someone started but didn't finish)
@@ -50,39 +50,38 @@ Check for:
 
 ### Step 2: Claim
 
-Claim before starting any work. The claim context is the primary coordination signal.
+Reserve before starting any work. The reservation is the primary coordination signal.
 
 ```bash
-sprintctl claim create \
+sprintctl reservation reserve \
   --item-id <item-id> \
   --actor claude-session-1 \
-  --runtime-session-id "${CODEX_THREAD_ID:-manual-session}" \
-  --branch feat/handoff-patterns \
+  --session-id "${CODEX_THREAD_ID:-session-1}" \
   --json
 ```
 
-Save the returned `claim_id` and `claim_token` — you need both to prove ownership later.
+Save the returned reservation `id`. There is no token: a reservation carries no secret and proves nothing, so there is nothing to store securely or lose.
 
-Good claim context is implicit in your `--actor` + `--branch` combination. Use `item note` to
+Good coordination context is implicit in your `--actor` + `--branch` combination. Use `item note` to
 record intent before starting:
 
 ```bash
 sprintctl item note \
   --id <item-id> \
   --type decision \
-  --summary "Starting work: writing B-direct-implementation.md. Will cover claim pattern, work pattern, close/handoff. ~150 lines with concrete examples." \
+  --summary "Starting work: writing B-direct-implementation.md. Will cover reservation pattern, work pattern, close/handoff. ~150 lines with concrete examples." \
   --actor claude-session-1
 ```
 
 ### Step 3: Move item to active
 
 ```bash
+REV=$(sprintctl item show --id <item-id> --json | jq -r '.status_revision')
 sprintctl item status \
   --id <item-id> \
   --status active \
   --actor claude-session-1 \
-  --claim-id <claim-id> \
-  --claim-token <claim-token>
+  --expected-revision "$REV"
 ```
 
 ### Step 4: Work
@@ -98,13 +97,12 @@ sprintctl item note \
   --actor claude-session-1
 ```
 
-Keep the claim alive for long sessions:
+Refresh the activity clock during long sessions (optional — nothing expires):
 
 ```bash
-sprintctl claim heartbeat \
-  --id <claim-id> \
-  --claim-token <claim-token> \
-  --actor claude-session-1
+sprintctl reservation touch \
+  --id <reservation-id> \
+  --session-id "${CODEX_THREAD_ID:-session-1}"
 ```
 
 ### Step 5: Close or hand off
@@ -116,21 +114,20 @@ sprintctl claim heartbeat \
 sprintctl item note \
   --id <item-id> \
   --type decision \
-  --summary "Done. Created docs/workflows/B-direct-implementation.md. Covers claim, work, handoff patterns. 185 lines." \
+  --summary "Done. Created docs/workflows/B-direct-implementation.md. Covers reservation, work, handoff patterns. 185 lines." \
   --actor claude-session-1
 
 # Move item to done
+REV=$(sprintctl item show --id <item-id> --json | jq -r '.status_revision')
 sprintctl item status \
   --id <item-id> \
   --status done \
   --actor claude-session-1 \
-  --claim-id <claim-id> \
-  --claim-token <claim-token>
+  --expected-revision "$REV"
 
-# Release claim
-sprintctl claim release \
-  --id <claim-id> \
-  --claim-token <claim-token> \
+# Release the reservation
+sprintctl reservation release \
+  --id <reservation-id> \
   --actor claude-session-1
 ```
 
@@ -140,18 +137,16 @@ sprintctl claim release \
 # Record handoff note on the item
 sprintctl item note \
   --id <item-id> \
-  --type claim-handoff \
+  --type update \
   --summary "Partial progress — steps 1-3 complete, step 4 not yet written." \
   --detail "Next: Write Step 4 section (close/handoff), then review whole doc for conciseness. File: docs/workflows/B-direct-implementation.md in progress." \
   --actor claude-session-1
 
-# Transfer claim ownership to next session
-sprintctl claim handoff \
-  --id <claim-id> \
-  --claim-token <claim-token> \
+# Reassign the reservation to the next session
+sprintctl reservation reassign \
+  --id <reservation-id> \
   --actor claude-session-2 \
-  --mode rotate \
-  --note "Step 4 not yet written. File in progress at docs/workflows/B-direct-implementation.md"
+  --session-id <next-session-id>
 ```
 
 The handoff command mints a new token for the next session and returns it. The previous token is invalidated.
@@ -164,17 +159,18 @@ The handoff command mints a new token for the next session and returns it. The p
 
 ```bash
 # Claim
-sprintctl claim create \
+sprintctl reservation reserve \
   --item-id 7 \
   --actor claude-session-1 \
-  --runtime-session-id "${CODEX_THREAD_ID:-session-1}" \
-  --branch docs/handoff-patterns \
+  --session-id "${CODEX_THREAD_ID:-session-1}" \
   --json
-# → claim_id: 3, claim_token: tok_abc123
+# → {"id": 3, "state": "active", ...}
 
 # Move to active
+REV=$(sprintctl item show --id 7 --json | jq -r '.status_revision')
 sprintctl item status --id 7 --status active \
-  --actor claude-session-1 --claim-id 3 --claim-token tok_abc123
+  --actor claude-session-1 \
+  --expected-revision "$REV"
 
 # Record intent
 sprintctl item note --id 7 --type decision \
@@ -188,27 +184,29 @@ sprintctl item note --id 7 --type decision \
   --summary "Done. docs/agent-guidance/handoff-patterns.md created with all 4 patterns. 210 lines." \
   --actor claude-session-1
 
+REV=$(sprintctl item show --id 7 --json | jq -r '.status_revision')
 sprintctl item status --id 7 --status done \
-  --actor claude-session-1 --claim-id 3 --claim-token tok_abc123
+  --actor claude-session-1 \
+  --expected-revision "$REV"
 
-sprintctl claim release --id 3 --claim-token tok_abc123 --actor claude-session-1
+sprintctl reservation release --id 3 --actor claude-session-1
 ```
 
 **If stopping after 3 of 4 patterns:**
 
 ```bash
 # Record handoff
-sprintctl item note --id 7 --type claim-handoff \
+sprintctl item note --id 7 --type update \
   --summary "3 of 4 patterns written: normal-completion, blocked-waiting, partial-progress." \
   --detail "Next: Write decision-needed pattern (section 4), then add intro paragraph. File: docs/agent-guidance/handoff-patterns.md at line 147. No blockers." \
   --actor claude-session-1
 
 # Transfer to next session
-sprintctl claim handoff \
-  --id 3 --claim-token tok_abc123 \
-  --actor claude-session-2 --mode rotate \
-  --note "3/4 patterns done. Need decision-needed pattern + intro."
-# → new claim_token minted for claude-session-2
+sprintctl reservation reassign \
+  --id 3 \
+  --actor claude-session-2 \
+  --session-id <next-session-id>
+# → same reservation id, actor is now claude-session-2
 ```
 
 ---
@@ -217,7 +215,7 @@ sprintctl claim handoff \
 
 - Work product (code, docs, config, etc.)
 - `done` item with completion note, OR
-- Handoff note with clear next steps and claim transferred to next session
+- Handoff note with clear next steps and the reservation reassigned to the next session
 
 ---
 
@@ -234,11 +232,11 @@ If review is required, use Workflow C instead.
 
 ## Common mistakes
 
-**Forgetting to claim:** Another agent picks up the same item concurrently. Always claim first.
+**Forgetting to reserve:** Another agent picks up the same item concurrently. Always reserve first.
 
 **Not recording intent:** Future you (or another agent) has no context. Add a note before starting.
 
-**Not transferring the claim on handoff:** Leaving the old claim active blocks others from picking it up. Use `claim handoff` to rotate ownership, not just `claim release`.
+**Not moving the reservation on handoff:** Leaving it naming the old session misleads whoever looks next. Use `reservation reassign` to transfer it in place, rather than releasing and hoping the next session reserves.
 
 **Closing with no note:** "Done" is not useful. "Done. Created X with Y. 185 lines covering Z." is useful.
 

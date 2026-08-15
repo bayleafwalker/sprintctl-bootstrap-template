@@ -11,11 +11,11 @@
 
 ## Read this first
 
-This repo uses `sprintctl` for sprint/track/item/claim management and `kctl` for durable knowledge management. Both are local-first CLI tools operating directly on repo-native files.
+This repo uses `sprintctl` for sprint/track/item/reservation management and `kctl` for durable knowledge management. Both are local-first CLI tools operating directly on repo-native files.
 
 Before doing any work:
 1. Check current sprint: `sprintctl sprint current`
-2. Check open claims: `sprintctl claim list`
+2. Check open reservations: `sprintctl reservation list --all`
 3. Check any handoff notes on items you're picking up
 4. Identify which track your work belongs to
 5. Claim before starting any non-trivial work
@@ -64,9 +64,9 @@ When creating items, always assign a track. If an item spans tracks, put it in t
 - Small doc edits (typo fixes, clarifications under 10 lines)
 - Reading/exploration with no writes
 
-**How to claim:**
+**How to reserve:**
 ```
-sprintctl claim create --item <item-id> --context "brief description of approach"
+sprintctl reservation reserve --item-id <item-id> --actor <your-session-id> --json
 ```
 
 Always include meaningful context. "Working on this" is not useful. "Drafting the handoff-patterns doc, focusing on blocked and partial-progress cases" is useful.
@@ -154,7 +154,7 @@ sprintctl item handoff <item-id> --note "
 "
 ```
 
-Then release or retain the claim based on whether the item is truly paused or just waiting.
+Then release or retain the reservation based on whether the item is truly paused or just waiting.
 
 Handoff patterns: `docs/agent-guidance/handoff-patterns.md`
 
@@ -162,8 +162,8 @@ Handoff patterns: `docs/agent-guidance/handoff-patterns.md`
 
 ## What NOT to do
 
-- **Don't start work without checking current sprint state** — you may duplicate effort or work on something already claimed
-- **Don't claim items you won't touch** — stale claims block others and degrade signal
+- **Don't start work without checking current sprint state** — you may duplicate effort or work on something already reserved
+- **Don't reserve items you won't touch** — stale reservations mislead others and degrade signal
 - **Don't promote every implementation note to kctl** — noise degrades the knowledge base
 - **Don't skip handoff notes** — the next agent (or future you) will have no context
 - **Don't create new tracks mid-sprint without noting why** — track taxonomy should be stable within a sprint
@@ -186,9 +186,9 @@ sprintctl item list --track workflow --state open
 sprintctl item create --track docs --title "..." --sprint current
 
 # Claims
-sprintctl claim list
-sprintctl claim create --item <id> --context "..."
-sprintctl claim release --item <id>
+sprintctl reservation list --all
+sprintctl reservation reserve --item-id <id> --actor <your-session-id> --json
+sprintctl reservation release --id <reservation-id>
 
 # Handoffs
 sprintctl item handoff <id> --note "..."

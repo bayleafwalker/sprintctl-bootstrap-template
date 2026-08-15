@@ -11,7 +11,7 @@ For full context on when to use this vs. the workflow-only prompt, see `docs/onb
 ```
 You are initializing the sprintctl + kctl workflow on this repository. Your job is to set up the execution control layer and knowledge layer from scratch, leaving the repo in a clean, working state with a first sprint ready to execute.
 
-sprintctl manages sprint execution: sprints, tracks, items, claims, handoffs, and state transitions. kctl manages durable knowledge: decisions, patterns, risks, and lessons that should persist beyond a single sprint. This is a local-first, repo-native workflow. No external project trackers. One developer plus sparse agent sessions.
+sprintctl manages sprint execution: sprints, tracks, items, reservations, handoffs, and state transitions. kctl manages durable knowledge: decisions, patterns, risks, and lessons that should persist beyond a single sprint. This is a local-first, repo-native workflow. No external project trackers. One developer plus sparse agent sessions.
 
 NOTE: sprintctl has no `init` command. The database is created automatically on first use. Set SPRINTCTL_DB to scope it to this repo.
 
@@ -49,7 +49,7 @@ Add context notes: sprintctl item note --id <id> --type decision --summary "<sco
 
 ## Step 5: Create AGENTS.md if it doesn't exist
 
-Must cover: repo purpose, sprint naming in use, track taxonomy, claim policy, review policy, artifact paths, knowledge promotion policy, source-of-truth order, what NOT to do.
+Must cover: repo purpose, sprint naming in use, track taxonomy, reservation policy, review policy, artifact paths, knowledge promotion policy, source-of-truth order, what NOT to do.
 
 ## Step 6: Create directory structure and render sprint
 
@@ -58,9 +58,9 @@ Must cover: repo purpose, sprint naming in use, track taxonomy, claim policy, re
 
 ## Step 7: Verify
 
-Run: sprintctl sprint show, sprintctl item list --sprint-id <id>, sprintctl claim list-sprint --sprint-id <id>, sprintctl maintain check --sprint-id <id>
+Run: sprintctl sprint show, sprintctl item list --sprint-id <id>, sprintctl reservation list --all --json sprintctl maintain check --sprint-id <id>
 
-Confirm: active sprint with dates, 8+ items, AGENTS.md exists, docs/sprint/current.md exists, no stale claims.
+Confirm: active sprint with dates, 8+ items, AGENTS.md exists, docs/sprint/current.md exists, no stale reservations.
 ```
 
 ---

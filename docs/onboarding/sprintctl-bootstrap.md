@@ -26,7 +26,7 @@ You are initializing the sprintctl + kctl workflow on this repository. Your job 
 
 ## Context
 
-sprintctl manages sprint execution: sprints, tracks, items, claims, handoffs, and state transitions. kctl manages durable knowledge: decisions, patterns, risks, and lessons that should persist beyond a single sprint. sprintctl does NOT have an `init` command — the database is created automatically on first use.
+sprintctl manages sprint execution: sprints, tracks, items, reservations, handoffs, and state transitions. kctl manages durable knowledge: decisions, patterns, risks, and lessons that should persist beyond a single sprint. sprintctl does NOT have an `init` command — the database is created automatically on first use.
 
 This is a local-first, repo-native workflow. No external project trackers. One developer plus sparse agent sessions.
 
@@ -58,7 +58,7 @@ Read the following if they exist:
 Identify:
 - What is this repo for?
 - Is there an existing sprint? What state is it in?
-- Are there open claims?
+- Are there open reservations?
 - What tracks make sense for this repo?
 
 ### 3. Create the first sprint
@@ -87,10 +87,10 @@ Create 5-10 items representing the actual work. Tracks are created implicitly wh
 sprintctl item add \
   --sprint-id <sprint-id> \
   --track workflow \
-  --title "Define track taxonomy and claim policy in AGENTS.md"
+  --title "Define track taxonomy and reservation policy in AGENTS.md"
 
 sprintctl item note --id <item-id> --type decision \
-  --summary "Done when AGENTS.md has: repo classification, tracks, claim policy, review policy, artifact paths." \
+  --summary "Done when AGENTS.md has: repo classification, tracks, reservation policy, review policy, artifact paths." \
   --actor setup
 
 sprintctl item add \
@@ -132,14 +132,14 @@ sprintctl render > docs/sprint/current.md
 ```bash
 sprintctl sprint show
 sprintctl item list --sprint-id <sprint-id>
-sprintctl claim list-sprint --sprint-id <sprint-id>
+sprintctl reservation list --all --json
 sprintctl maintain check --sprint-id <sprint-id>
 ```
 
 Check that:
 - Sprint is in active state with correct dates
 - Items exist across tracks
-- No stale claims from initialization
+- No stale reservations from initialization
 - AGENTS.md accurately describes the setup
 - docs/sprint/current.md exists
 
@@ -177,16 +177,16 @@ You are picking up work on this repository which uses the sprintctl + kctl workf
 2. Load the environment: source .envrc (or direnv allow)
 3. Run: sprintctl sprint show
 4. Run: sprintctl item list --sprint-id <id>
-5. Run: sprintctl claim list-sprint --sprint-id <id>
+5. Run: sprintctl reservation list --all --json
 6. Check for handoff events on any active items: sprintctl item show --id <id>
 
 ## Identify your role for this session
 
 Based on what you find, you are in one of these situations:
 
-**A. Continuing claimed work:** A claim exists with your session's context or a handoff note directs you to continue. Read the item events, assess state, and continue. Use `sprintctl claim resume` if you need to find your own claim.
+**A. Continuing reserved work:** A reservation exists with your session's context or a handoff note directs you to continue. Read the item events, assess state, and continue. Use `sprintctl reservation list --all --json` if you need to find your own reservation.
 
-**B. Picking up open work:** Items exist that are pending and unclaimed. Pick the highest priority item in your track, claim it, move it to active, and begin.
+**B. Picking up open work:** Items exist that are pending and unreserved. Pick the highest priority item in your track, reserve it, move it to active, and begin.
 
 **C. Shaping new work:** The backlog is thin or the sprint is complete. Shape the next sprint by reviewing what's needed, creating items, or running the bootstrap prompt if this is a fresh start.
 
@@ -203,17 +203,17 @@ Based on what you find, you are in one of these situations:
 
 ## Execution norms
 
-- Claim before starting any non-trivial work: `sprintctl claim create --item-id <id> --actor <you> --json`
-- Save the claim_token from the output — you need it to transition the item and release the claim
-- Leave a handoff note when you stop: `sprintctl item note --id <id> --type claim-handoff ...`
-- Transfer the claim when handing off: `sprintctl claim handoff --id <claim-id> --claim-token <token> --actor <next> --mode rotate`
+- Reserve before starting any non-trivial work: `sprintctl reservation reserve --item-id <id> --actor <you> --json`
+- Save the reservation `id` from the output — you need it to release or reassign later. There is no token; a reservation carries no secret.
+- Leave a handoff note when you stop: `sprintctl item note --id <id> --type update ...`
+- Reassign the reservation when handing off: `sprintctl reservation reassign --id <reservation-id> --actor <next> --session-id <next-session-id>`
 - Record decisions during work: `sprintctl item note --id <id> --type decision ...`
-- Close items when done: `sprintctl item status --id <id> --status done --claim-id <id> --claim-token <token>`
-- Block items when blocked: `sprintctl item status --id <id> --status blocked --claim-id <id> --claim-token <token>`
+- Close items when done: `sprintctl item status --id <id> --status done --expected-revision <revision>
+- Block items when blocked: `sprintctl item status --id <id> --status blocked --expected-revision <revision>
 
 ## Before you stop
 
-- Release claims on anything you won't continue: `sprintctl claim release --id <id> --claim-token <token>`
+- Release reservations on anything you won't continue: `sprintctl reservation release --id <id>
 - Leave handoff notes on anything in-progress
 - Update docs/sprint/current.md: `sprintctl render > docs/sprint/current.md`
 - Record any decisions or patterns worth preserving: `sprintctl item note --id <id> --type pattern-noted ...`
@@ -230,6 +230,6 @@ After running the bootstrap prompt on a fresh repo, you should have:
 - 3-5 tracks with 5-10 shaped items
 - `AGENTS.md` with accurate content for this repo
 - `docs/sprint/current.md` showing the current sprint state
-- No stale claims or orphaned items
+- No stale reservations or orphaned items
 
 Total time for an agent to complete bootstrap: typically 10-20 minutes of session time.

@@ -14,7 +14,7 @@ cat AGENTS.md
 
 Read the whole thing. Key things to internalize:
 - Track taxonomy (what tracks exist and what they cover)
-- Claim policy (when claiming is required vs. optional)
+- Reservation policy (when reserving is required vs. optional)
 - Review policy (what changes require review before close)
 - Sprint naming convention in use
 
@@ -66,42 +66,55 @@ sprintctl item list --sprint-id <sprint-id>
 
 Scan for:
 - Pending items (potential work for this session)
-- Active items that may have stale claims
+- Active items that may have stale reservations
 - Blocked items that might now be unblockable
 
 ---
 
-## Step 5: Check open claims
+## Step 5: Check open reservations
 
 ```bash
-sprintctl claim list-sprint --sprint-id <sprint-id>
+sprintctl reservation list --all --json
 ```
 
-For each claim, check:
+For each reservation, check:
 - When was it created?
-- Is the claiming agent still active, or is this stale?
+- Is the holding session still active, or is this abandoned?
 - Is there a handoff note on the item?
 
-A claim with no recent activity and no handoff note on the item is likely stale.
+A reservation with no recent activity and no handoff note on the item is likely
+abandoned.
 
-**Staleness heuristic:** A claim created more than 24 hours ago with no heartbeat activity and no handoff note is probably stale. Use `maintain sweep` to purge expired claims:
+**Staleness heuristic:** `stale` in `reservation list` means inactive past the
+threshold (4h by default). It is a *display* signal, not an expiry — nothing
+lapses and nothing transfers on its own, so a stale reservation still holds
+the item. `maintain sweep` marks genuinely abandoned ones as interrupted:
 
 ```bash
 sprintctl maintain sweep --sprint-id <sprint-id>
 ```
 
-If you're taking over a legitimately stale-claimed item, you'll need to use the adopt path:
+If you're taking over an abandoned item, decide between reassigning and
+overriding — there is no adoption step, because there is no credential to
+adopt:
 
 ```bash
-# First check what's on the item
-sprintctl item show --id <item-id>
+# First check what's on the item and who holds it
+sprintctl item show --id <item-id> --json
+sprintctl reservation list --item-id <item-id> --all --json
 
-# Then create your own claim using legacy adopt (for pre-token claims)
-sprintctl claim create \
+# Holder is gone: move the existing reservation to you
+sprintctl reservation reassign \
+  --id <reservation-id> \
+  --actor your-session-id \
+  --session-id "${CODEX_THREAD_ID:-session-1}"
+
+# Holder may still be live: this interrupts them, and says so on the record
+sprintctl reservation reserve \
   --item-id <item-id> \
   --actor your-session-id \
-  --runtime-session-id "${CODEX_THREAD_ID:-session-1}" \
-  --json
+  --session-id "${CODEX_THREAD_ID:-session-1}" \
+  --override --json
 ```
 
 ---
@@ -143,7 +156,7 @@ For each blocked item:
 If you can unblock it:
 
 ```bash
-# Return the item to active (or pending if no claim will be taken immediately)
+# Return the item to active (or pending if no reservation will be taken immediately)
 sprintctl item status --id <item-id> --status pending --actor your-session-id
 
 sprintctl item note \
@@ -168,32 +181,32 @@ Don't spread across all tracks in one session. Focus.
 
 ---
 
-## Step 9: Decide whether to claim before starting
+## Step 9: Decide whether to reserve before starting
 
-Per AGENTS.md claim policy:
+Per AGENTS.md reservation policy:
 
 **Claim before starting if:**
 - Any implementation work (code, docs, config)
 - Work likely to span more than 15-20 minutes
 - Work another agent or human shouldn't duplicate
 
-**No claim needed for:**
+**No reservation needed for:**
 - Read-only orientation (what you're doing right now)
 - Tiny edits (typo fixes, adding a sentence)
 
-When in doubt, claim. A claim you release after 5 minutes has zero cost.
+When in doubt, reserve. A reservation you release after 5 minutes has zero cost.
 
 ```bash
-sprintctl claim create \
+sprintctl reservation reserve \
   --item-id <item-id> \
   --actor your-session-id \
-  --runtime-session-id "${CODEX_THREAD_ID:-session-1}" \
-  --branch feat/your-work \
+  --session-id "${CODEX_THREAD_ID:-session-1}" \
   --json
-# Save claim_id and claim_token from output
+# Save the returned reservation id
 
+REV=$(sprintctl item show --id <item-id> --json | jq -r '.status_revision')
 sprintctl item status --id <item-id> --status active \
-  --actor your-session-id --claim-id <claim-id> --claim-token <claim-token>
+  --actor your-session-id --expected-revision "$REV"
 ```
 
 ---
@@ -206,10 +219,10 @@ cat AGENTS.md
 source .envrc
 sprintctl sprint show
 sprintctl item list --sprint-id 1
-sprintctl claim list-sprint --sprint-id 1
+sprintctl reservation list --all --json
 # Read any item handoff notes
 sprintctl item list --sprint-id 1 --status blocked
-# Pick your work, claim it, start
+# Pick your work, reserve it, start
 ```
 
 Total time for a clean entry: 5-10 minutes.
@@ -222,7 +235,7 @@ If you see any of these, stop and address before starting work:
 
 - **No AGENTS.md** → Create it (see bootstrap docs)
 - **No active sprint** → Create one (see `docs/workflows/E-fresh-repo-bootstrap.md`)
-- **Many stale claims** → Run `sprintctl maintain sweep`, then check for orphaned work
+- **Many stale reservations** → Run `sprintctl maintain sweep`, then check for orphaned work
 - **Sprint is past its end date** → Archive it, create next sprint with `maintain carryover`
 
 Don't proceed with implementation work while the coordination layer is broken.
