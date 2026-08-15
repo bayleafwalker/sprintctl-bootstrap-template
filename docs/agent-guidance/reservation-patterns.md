@@ -20,12 +20,21 @@ That is the whole contract. It is a coordination signal, not a lock.
 **There is no ownership proof.** No token, no credential, nothing to store or
 lose. No sprintctl mutation checks who holds a reservation — `item status` is
 guarded by a revision compare-and-swap, not by ownership. The database enforces
-exactly one thing: at most one *active* `execute` reservation per item.
+nothing about who may reserve: several sessions can hold active reservations on
+one item at once.
 
 That means conflicts are *detected and surfaced*, not prevented. `reserve`
-refuses when someone already holds the item and tells you who. `--override`
-always succeeds. Both outcomes are visible to an operator, which is the point:
-the control is that a person can see what happened, not that the tool said no.
+always succeeds and reports what it found — `conflict`,
+`conflicting_reservations`, and `conflict_severity` (`warning` when two
+sessions both claim `execution`). Refusing you would not have stopped you
+working, only kept you out of the ledger. The control is that a person can see
+the overlap, not that the tool said no.
+
+**Roles are the relationship to the work:** `execution` (doing it),
+`verification` (reviewing or testing it), `observation` (watching or
+orchestrating it). That is what makes an overlap readable — two `execution`
+reservations are worth a conversation; `execution` beside `verification` is
+ordinary collaboration.
 
 ---
 
@@ -132,14 +141,20 @@ state is.
 Nothing expires. There is no TTL and no heartbeat requirement, so a long task
 cannot lapse mid-flight.
 
-Touching a reservation refreshes its activity clock, which only affects whether
-maintenance *displays* it as stale:
+The activity clock advances on its own whenever your session successfully
+mutates the item (status, edit, note, ref, dep), so touching is for stretches of
+work happening outside sprintctl. It only affects whether maintenance *displays*
+the reservation as stale:
 
 ```bash
 sprintctl reservation touch --id <reservation-id> --session-id <your-session-id>
 ```
 
-This is optional. Skipping it loses nothing except a fresher timestamp.
+This is optional. Skipping it loses nothing except a fresher timestamp — and
+inside sprintctl your own work keeps the clock fresh anyway. Staleness is a
+display horizon (default 4 hours); only an operator running
+`sprintctl maintain sweep` interrupts long-idle reservations, and nothing
+expires in the background.
 
 ---
 
@@ -228,10 +243,16 @@ sprintctl reservation list --item-id <item-id> --all --json
 sprintctl reservation reassign --id <reservation-id> \
   --actor <your-session-id> --session-id "${CODEX_THREAD_ID:-session-1}"
 
-# Override only when you are deliberately interrupting a live session
+# Reserve alongside a live session when you are collaborating: this always
+# succeeds and reports the overlap for both of you to act on
 sprintctl reservation reserve --item-id <item-id> \
   --actor <your-session-id> --session-id "${CODEX_THREAD_ID:-session-1}" \
-  --override --json
+  --role execution --json
+
+# Interrupt only when you are deliberately displacing a live session
+sprintctl reservation reserve --item-id <item-id> \
+  --actor <your-session-id> --session-id "${CODEX_THREAD_ID:-session-1}" \
+  --interrupt-existing --json
 
 # Record what you found either way
 sprintctl item note --id <item-id> --type decision \
@@ -239,9 +260,10 @@ sprintctl item note --id <item-id> --type decision \
   --actor <your-session-id>
 ```
 
-An override interrupts the previous reservation and records the reason on it,
-so the interrupted session can see what happened. That audit trail is the
-control — use it, don't route around it.
+`--interrupt-existing` interrupts the item's active `execution` reservations
+and records the reason on each, so the interrupted session can see what
+happened. Verification and observation reservations are left alone. That audit
+trail is the control — use it, don't route around it.
 
 ---
 
@@ -280,7 +302,14 @@ There is no token to produce and no proof to verify. If a workflow step seems
 to need one, the step is written against the retired claim model — re-read it
 against `sprintctl agent-protocol --json`.
 
-**Overriding to avoid a conversation:**
-`--override` always works, which makes it a coordination decision rather than a
-technical one. Reassign when the holder is gone; override when you are
-knowingly interrupting someone, and say so in a note.
+**Interrupting to avoid a conversation:**
+`--interrupt-existing` always works, which makes it a coordination decision
+rather than a technical one — and you rarely need it, because reserving
+alongside someone is allowed and surfaces the conflict for both of you.
+Reassign when the holder is gone; interrupt when you are knowingly displacing
+someone, and say so in a note.
+
+**Reading a conflict as a refusal:**
+A reported conflict is information, not an error. Your reservation exists.
+Read `conflicting_reservations`, decide with the other session, and keep
+working or stand down deliberately.

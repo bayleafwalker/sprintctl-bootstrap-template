@@ -204,7 +204,7 @@ Stop and hand off when:
 sprintctl item show --id <item-id>
 
 # Claim for review
-sprintctl reservation reserve --item-id <item-id> --actor reviewer --role review --json
+sprintctl reservation reserve --item-id <item-id> --actor reviewer --role verification --json
 
 # Move to active for review work
 REV=$(sprintctl item show --id <item-id> --json | jq -r '.status_revision')
