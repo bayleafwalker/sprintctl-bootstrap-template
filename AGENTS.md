@@ -14,11 +14,11 @@
 This repo uses `sprintctl` for sprint/track/item/reservation management and `kctl` for durable knowledge management. Both are local-first CLI tools operating directly on repo-native files.
 
 Before doing any work:
-1. Check current sprint: `sprintctl sprint current`
+1. Check current sprint: `sprintctl sprint show`
 2. Check open reservations: `sprintctl reservation list --all`
 3. Check any handoff notes on items you're picking up
 4. Identify which track your work belongs to
-5. Claim before starting any non-trivial work
+5. Reserve before starting any non-trivial work
 
 ---
 
