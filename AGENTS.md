@@ -177,15 +177,15 @@ Handoff patterns: `docs/agent-guidance/handoff-patterns.md`
 
 ```bash
 # Sprint state
-sprintctl sprint current
-sprintctl sprint status
+sprintctl sprint show
+sprintctl sprint list
 
 # Items
-sprintctl item list --sprint current
-sprintctl item list --track workflow --state open
-sprintctl item create --track docs --title "..." --sprint current
+sprintctl item list
+sprintctl item list --track workflow --status active
+sprintctl item add --sprint-id <sprint-id> --track docs --title "..."
 
-# Claims
+# Reservations
 sprintctl reservation list --all
 sprintctl reservation reserve --item-id <id> --actor <your-session-id> --json
 sprintctl reservation release --id <reservation-id>
